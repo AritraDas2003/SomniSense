@@ -1,16 +1,52 @@
-# React + Vite
+# SomniSense frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+SomniSense is an educational sleep-monitoring prototype for staff. This frontend currently implements the first mock-backed workflow milestone:
 
-Currently, two official plugins are available:
+**Mock login → dashboard/patient list → add patient → assign device → patient overview**
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+There is no public landing page. All content is demo data unless explicitly integrated with a confirmed Spring Boot contract.
 
-## React Compiler
+## Run locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```sh
+npm run dev
+```
 
-## Expanding the ESLint configuration
+The app starts in mock mode by default. Demo sign-in accounts:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@somnisense.local` | `SomniDemo123!` |
+| Operator | `operator@somnisense.local` | `SomniDemo123!` |
+
+These are local mock credentials only; they are not production accounts.
+
+Authentication state is managed in Redux Toolkit (`auth` slice); the app is mounted under the Redux `Provider`. Login, patient registration, and device assignment use React Hook Form for validation and submission state.
+
+## API mode
+
+Mock mode is enabled unless `VITE_USE_MOCK_API=false` is set. To configure the provisional Spring Boot adapter, set:
+
+```env
+VITE_USE_MOCK_API=false
+VITE_API_BASE_URL=http://localhost:8080/api/v1
+```
+
+Do not put secrets in Vite environment variables. The service endpoint and DTO assumptions are provisional; review [docs/API_INTEGRATION_CHECKLIST.md](./docs/API_INTEGRATION_CHECKLIST.md) with the backend team before connecting a real environment.
+
+Mock fixtures are held in memory and reset on page reload. The sample simulated stream includes a missing-data gap and a stale-data fixture. It is not live telemetry and must not be interpreted as a clinical measurement or diagnosis. Physical-source mock records intentionally have no fabricated readings.
+
+## Validation
+
+```sh
+npm run build
+npm run lint
+```
+
+The build is expected to succeed. The repository-wide lint command currently reports existing issues in the starter UI button component and `vite.config.js`; lint the changed modules separately to check this milestone.
+
+## Current scope
+
+Implemented: mock login/logout and session-expiry handling for HTTP `401`, responsive navigation shell, dashboard, patient search/filter/list, patient registration, device inventory/assignment, and patient overview with separate SpO₂ and heart-rate charts.
+
+Not implemented yet: staff management, alert/event review, simulator controls, dedicated session history, and reports. The frontend does not connect directly to PostgreSQL or to the Python simulator/ML service.
