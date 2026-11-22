@@ -1,0 +1,1490 @@
+{
+  "info": {
+    "name": "SomniSense Backend API",
+    "description": "SomniSense Spring Boot backend - first milestone (Stages 1-9).\nRun the folders IN ORDER (Collection Runner): each request stores the IDs the next one needs.\n\nSetup: import \"SomniSense-Local.postman_environment.json\", select it, and fill the SECRET values\nadminPassword (SOMNISENSE_ADMIN_PASSWORD from backend/.env) and ingestionKey (INGESTION_API_KEY).\nNo passwords or keys are stored in this collection.\n\nEducational prototype: model/readings here are SYNTHETIC test data, not clinical data.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "runId",
+      "value": ""
+    },
+    {
+      "key": "xsrfToken",
+      "value": ""
+    },
+    {
+      "key": "adminUserId",
+      "value": ""
+    },
+    {
+      "key": "createdUserId",
+      "value": ""
+    },
+    {
+      "key": "patientId",
+      "value": ""
+    },
+    {
+      "key": "patientCode",
+      "value": ""
+    },
+    {
+      "key": "deviceId",
+      "value": ""
+    },
+    {
+      "key": "deviceCode",
+      "value": ""
+    },
+    {
+      "key": "assignmentId",
+      "value": ""
+    },
+    {
+      "key": "sessionId",
+      "value": ""
+    },
+    {
+      "key": "sessionCode",
+      "value": ""
+    },
+    {
+      "key": "readingsBody",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Health",
+      "description": "Public. No login needed.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Auth",
+      "description": "Session-cookie login with CSRF. See docs/api/AUTH.md.",
+      "item": [
+        {
+          "name": "CSRF token (before login)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/csrf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "csrf"
+              ]
+            },
+            "description": "Stores the current CSRF token in {{xsrfToken}}. A browser does this via the XSRF-TOKEN cookie automatically; Postman needs this step (also after login, because login issues a NEW token)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('xsrfToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login WITHOUT CSRF header (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{adminLogin}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code CSRF_TOKEN_INVALID', () => pm.expect(pm.response.json().code).to.eql('CSRF_TOKEN_INVALID'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login with WRONG password (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{adminLogin}}\",\n  \"password\": \"definitely-not-the-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('code INVALID_CREDENTIALS', () => pm.expect(pm.response.json().code).to.eql('INVALID_CREDENTIALS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "adminLogin / adminPassword come from the environment (password is a SECRET value, never exported).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{adminLogin}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('role ADMIN', () => pm.expect(pm.response.json().role).to.eql('ADMIN'));",
+                  "pm.test('no password in response', () => pm.expect(pm.response.text()).to.not.include('password'));",
+                  "pm.collectionVariables.set('adminUserId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CSRF token (after login)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/csrf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "csrf"
+              ]
+            },
+            "description": "Stores the current CSRF token in {{xsrfToken}}. A browser does this via the XSRF-TOKEN cookie automatically; Postman needs this step (also after login, because login issues a NEW token)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('xsrfToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Who am I",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('admin', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('adminUserId')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Users (Admin)",
+      "description": "ADMIN only. See docs/api/USERS.md.",
+      "item": [
+        {
+          "name": "Create Operator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "The backend generates a one-time temporaryPassword (shown once). This collection does NOT store it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"ops.{{runId}}\",\n  \"email\": \"ops.{{runId}}@demo.local\",\n  \"role\": \"OPERATOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('runId', Date.now().toString(36));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('temporary password returned once', () => pm.expect(j.temporaryPassword).to.match(/^[A-Za-z0-9]{16}$/));",
+                  "pm.collectionVariables.set('createdUserId', j.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?role=OPERATOR&size=5&sort=createdAt&direction=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "OPERATOR"
+                },
+                {
+                  "key": "size",
+                  "value": "5"
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "direction",
+                  "value": "desc"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('page shape', () => pm.expect(pm.response.json()).to.have.keys('content','page','size','totalElements','totalPages'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deactivate MYSELF (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{adminUserId}}/deactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{adminUserId}}",
+                "deactivate"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code SELF_ACTION_NOT_ALLOWED', () => pm.expect(pm.response.json().code).to.eql('SELF_ACTION_NOT_ALLOWED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Patients",
+      "description": "ADMIN + OPERATOR. See docs/api/PATIENTS.md.",
+      "item": [
+        {
+          "name": "Register SIMULATED patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Postman Demo Patient {{runId}}\",\n  \"alias\": \"PM-{{runId}}\",\n  \"gender\": \"UNDISCLOSED\",\n  \"sourceType\": \"SIMULATED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('backend-generated code', () => pm.expect(j.patientCode).to.match(/^PT-[2-9A-HJ-NP-Z]{8}$/));",
+                  "pm.collectionVariables.set('patientId', j.id); pm.collectionVariables.set('patientCode', j.patientCode);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register INVALID patient (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alias\": \"no name, no source\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code VALIDATION_FAILED', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('field errors', () => pm.expect(pm.response.json().fieldErrors.map(f => f.field)).to.include.members(['fullName','sourceType']));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Find patient by code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients?q={{patientCode}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{patientCode}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('found', () => pm.expect(pm.response.json().totalElements).to.eql(1));",
+                  "pm.test('list hides medical data', () => pm.expect(pm.response.json().content[0]).to.not.have.property('medicalDetails'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save medical details",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients/{{patientId}}/medical-details",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "{{patientId}}",
+                "medical-details"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Synthetic demo record - not a real person\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('saved', () => pm.expect(pm.response.json().medicalDetails.notes).to.include('Synthetic'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Devices",
+      "description": "ADMIN + OPERATOR (deactivate: ADMIN). See docs/api/DEVICES.md.",
+      "item": [
+        {
+          "name": "Register SIMULATED device (code generated)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/devices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceType\": \"SIMULATED\",\n  \"modelName\": \"Postman virtual oximeter\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('generated code', () => pm.expect(j.deviceCode).to.match(/^DEV-/));",
+                  "pm.test('simulated starts ENROLLED', () => pm.expect(j.enrollmentStatus).to.eql('ENROLLED'));",
+                  "pm.test('never seen yet', () => pm.expect(j.connectivityStatus).to.eql('UNKNOWN'));",
+                  "pm.collectionVariables.set('deviceId', j.id); pm.collectionVariables.set('deviceCode', j.deviceCode);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register DUPLICATE code (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/devices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceCode\": \"{{deviceCode}}\",\n  \"deviceType\": \"SIMULATED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code CONFLICT', () => pm.expect(pm.response.json().code).to.eql('CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 Device assignments",
+      "description": "See docs/api/ASSIGNMENTS.md.",
+      "item": [
+        {
+          "name": "Assign device to patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/device-assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "device-assignments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"patientId\": \"{{patientId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('assignmentId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assign again (safe repeat, expect 200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/device-assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "device-assignments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"patientId\": \"{{patientId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('same assignment', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('assignmentId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deactivate ASSIGNED device (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/devices/{{deviceId}}/deactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{{deviceId}}",
+                "deactivate"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code DEVICE_IN_USE', () => pm.expect(pm.response.json().code).to.eql('DEVICE_IN_USE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 Monitoring sessions",
+      "description": "See docs/api/SESSIONS.md.",
+      "item": [
+        {
+          "name": "Start session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sessions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{patientId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('ACTIVE', () => pm.expect(j.status).to.eql('ACTIVE'));",
+                  "pm.test('SIMULATED source', () => pm.expect(j.sourceType).to.eql('SIMULATED'));",
+                  "pm.collectionVariables.set('sessionId', j.id); pm.collectionVariables.set('sessionCode', j.sessionCode);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start again (double click, expect 200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sessions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{patientId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('same session', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('sessionId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Release device DURING session (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/device-assignments/{{assignmentId}}/release",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "device-assignments",
+                "{{assignmentId}}",
+                "release"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code SESSION_ACTIVE', () => pm.expect(pm.response.json().code).to.eql('SESSION_ACTIVE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 Ingestion (machine)",
+      "description": "Machine-to-machine: X-Ingestion-Key, NOT the staff login. See docs/api/INGESTION.md.",
+      "item": [
+        {
+          "name": "Send readings WITHOUT key (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ingestion/readings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingestion",
+                "readings"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceCode\": \"{{deviceCode}}\",\n  \"readings\": [\n    {\n      \"readingKey\": \"x\",\n      \"measuredAt\": \"2026-01-01T00:00:00Z\",\n      \"spo2\": 96,\n      \"heartRate\": 67\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('code UNAUTHORIZED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send readings (2 good + dropout + 1 out of range)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Ingestion-Key",
+                "value": "{{ingestionKey}}",
+                "description": "Machine key from INGESTION_API_KEY (environment secret)."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ingestion/readings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingestion",
+                "readings"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{{readingsBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Builds a batch with timestamps a few seconds in the past and keeps it for the 'resend' request.",
+                  "const now = Date.now();",
+                  "const iso = (msAgo) => new Date(now - msAgo).toISOString();",
+                  "const run = pm.collectionVariables.get('runId');",
+                  "const body = { deviceCode: pm.collectionVariables.get('deviceCode'), readings: [",
+                  "  { readingKey: `pm-${run}-1`, measuredAt: iso(4000), spo2: 97, heartRate: 68 },",
+                  "  { readingKey: `pm-${run}-2`, measuredAt: iso(3000), spo2: 95.5, heartRate: 70 },",
+                  "  { readingKey: `pm-${run}-3`, measuredAt: iso(2000), spo2: null, heartRate: null },",
+                  "  { readingKey: `pm-${run}-4`, measuredAt: iso(1000), spo2: 150, heartRate: 66 } ] };",
+                  "pm.collectionVariables.set('readingsBody', JSON.stringify(body, null, 2));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('3 accepted', () => pm.expect(j.accepted).to.eql(3));",
+                  "pm.test('out-of-range rejected, not clamped', () => pm.expect(j.rejected[0].reason).to.eql('SPO2_OUT_OF_RANGE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resend the SAME batch (retry is safe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Ingestion-Key",
+                "value": "{{ingestionKey}}",
+                "description": "Machine key from INGESTION_API_KEY (environment secret)."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ingestion/readings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingestion",
+                "readings"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{{readingsBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('nothing stored twice', () => { pm.expect(j.accepted).to.eql(0); pm.expect(j.duplicates).to.eql(3); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08 Readings (staff)",
+      "description": "See docs/api/READINGS.md.",
+      "item": [
+        {
+          "name": "Reading history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sessions/{{sessionId}}/readings?size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sessions",
+                "{{sessionId}}",
+                "readings"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('3 readings', () => pm.expect(j.totalElements).to.eql(3));",
+                  "pm.test('dropout stays null, not 0', () => pm.expect(j.content[2].spo2).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Latest values (live cards)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sessions/{{sessionId}}/readings/latest",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sessions",
+                "{{sessionId}}",
+                "readings",
+                "latest"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('device CONNECTED', () => pm.expect(j.connectivityStatus).to.eql('CONNECTED'));",
+                  "pm.test('latest row is the dropout', () => pm.expect(j.latest.spo2).to.eql(null));",
+                  "pm.test('last known SpO2 kept', () => pm.expect(j.lastSpo2.value).to.eql(95.5));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Patient row on the dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients?q={{patientCode}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{patientCode}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const row = pm.response.json().content[0];",
+                  "pm.test('device, session and latest reading', () => { pm.expect(row.currentDevice.deviceCode).to.eql(pm.collectionVariables.get('deviceCode')); pm.expect(row.activeSession.sessionCode).to.eql(pm.collectionVariables.get('sessionCode')); pm.expect(row.latestReading).to.have.property('measuredAt'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "09 Wrap up",
+      "description": "Ends the demo session, frees the device, logs out.",
+      "item": [
+        {
+          "name": "End session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sessions/{{sessionId}}/end",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sessions",
+                "{{sessionId}}",
+                "end"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ENDED', () => pm.expect(pm.response.json().status).to.eql('ENDED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Release device",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/device-assignments/{{assignmentId}}/release",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "device-assignments",
+                "{{assignmentId}}",
+                "release"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('released', () => pm.expect(pm.response.json().active).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{xsrfToken}}",
+                "description": "Required on POST/PUT/PATCH/DELETE (CSRF). Filled by the \"CSRF token\" requests."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Who am I after logout (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
