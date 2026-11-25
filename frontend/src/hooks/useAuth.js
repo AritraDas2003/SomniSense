@@ -1,16 +1,15 @@
 import { useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { selectAuth, signIn, signedOut, STORAGE_KEY } from '../features/auth/authSlice'
-import { useMockApi } from '../services/api/apiConfig'
+import { selectAuth, signIn, signOutUser } from '../features/auth/authSlice'
 
 export function useAuth() {
   const dispatch = useDispatch()
   const auth = useSelector(selectAuth)
 
-  const signOut = useCallback(() => {
-    if (useMockApi) sessionStorage.removeItem(STORAGE_KEY)
-    dispatch(signedOut())
-  }, [dispatch])
+  const signOut = useCallback(
+    () => dispatch(signOutUser()).unwrap(),
+    [dispatch],
+  )
 
   const authenticate = useCallback(
     (credentials) => dispatch(signIn(credentials)).unwrap(),

@@ -6,10 +6,10 @@ import PatientsTable from '../../components/common/PatientsTable'
 import { getDashboard } from '../../services/dashboardService'
 
 const cards = [
-  { key: 'patientCount', label: 'Total patients', detail: 'In this workspace', icon: BedDouble, tone: 'lime' },
+  { key: 'patientCount', label: 'Total patients', detail: 'System-wide total', icon: BedDouble, tone: 'lime' },
   { key: 'activeSessions', label: 'Active sessions', detail: 'Monitoring in progress', icon: Activity, tone: 'blue' },
-  { key: 'itemsNeedingReview', label: 'Needs review', detail: 'Possible event · review', icon: CircleAlert, tone: 'amber' },
-  { key: 'dataIssues', label: 'Data issues', detail: 'Stale or disconnected', icon: Radio, tone: 'rose' },
+  { key: 'itemsNeedingReview', label: 'Needs review', detail: 'Possible event · review', unavailableDetail: 'Unavailable (AI/alerts API pending)', icon: CircleAlert, tone: 'amber' },
+  { key: 'dataIssues', label: 'Data issues', detail: 'Active devices stale or disconnected', icon: Radio, tone: 'rose' },
 ]
 
 export default function DashboardPage() {
@@ -43,15 +43,27 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow="MONITORING OVERVIEW"
         title="Good evening"
-        description="A clear view of monitored patients, incoming data, and items that may need review."
+        description="A clear view of monitored patients, active sessions, and device connectivity."
         actions={<Link className="button button-primary" to="/patients/new"><Plus size={17} /> Add patient</Link>}
       />
 
-      {dashboard?.dataMode === 'MOCK' && <div className="demo-banner">
-        <span className="demo-banner-icon"><Activity size={17} /></span>
-        <div><strong>Demo workspace</strong><span>All information on this screen is mock data. Simulated readings are labelled; physical-device records are not live telemetry.</span></div>
-        <span className="mock-pill">MOCK API</span>
-      </div>}
+      {dashboard?.dataMode === 'MOCK' && (
+        <div className="demo-banner">
+          <span className="demo-banner-icon"><Activity size={17} /></span>
+          <div><strong>Demo workspace</strong><span>All information on this screen is mock data. Simulated readings are labelled; physical-device records are not live telemetry.</span></div>
+          <span className="mock-pill">MOCK API</span>
+        </div>
+      )}
+
+      {dashboard?.dataMode === 'LIVE' && (
+        <div className="info-banner">
+          <CircleAlert size={17} />
+          <div>
+            <strong>Partial overview metrics</strong>
+            <span>Patient, active session, and connectivity totals reflect real Spring Boot queries. Review-flag counts remain unavailable until backend predictions/alerts APIs are implemented.</span>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="error-state" role="alert">
@@ -61,13 +73,21 @@ export default function DashboardPage() {
       )}
 
       <section className="summary-grid" aria-label="Workspace summary">
-        {cards.map(({ key, label, detail, icon: Icon, tone }) => (
-          <article className="summary-card panel" key={key}>
-            <div className={`summary-icon summary-icon-${tone}`}><Icon size={18} /></div>
-            <div className="summary-card-copy"><span>{label}</span><strong>{loading ? <span className="skeleton skeleton-number" /> : dashboard?.summary[key] ?? '—'}</strong><small>{detail}</small></div>
-            <ArrowUpRight size={14} className="summary-card-mark" aria-hidden="true" />
-          </article>
-        ))}
+        {cards.map(({ key, label, detail, unavailableDetail, icon: Icon, tone }) => {
+          const metricValue = dashboard?.summary?.[key]
+          const isUnavailable = !loading && dashboard && metricValue == null
+          return (
+            <article className="summary-card panel" key={key}>
+              <div className={`summary-icon summary-icon-${tone}`}><Icon size={18} /></div>
+              <div className="summary-card-copy">
+                <span>{label}</span>
+                <strong>{loading ? <span className="skeleton skeleton-number" /> : metricValue ?? '—'}</strong>
+                <small>{isUnavailable && unavailableDetail ? unavailableDetail : detail}</small>
+              </div>
+              <ArrowUpRight size={14} className="summary-card-mark" aria-hidden="true" />
+            </article>
+          )
+        })}
       </section>
 
       {loading && !dashboard ? (
@@ -75,13 +95,17 @@ export default function DashboardPage() {
           <span className="spinner" /><span>Loading monitoring overview...</span>
         </div>
       ) : dashboard && (
-        <PatientsTable patients={dashboard.patients} compact />
+        <PatientsTable
+          patients={dashboard.patients}
+          compact
+          workspaceLabel={dashboard.dataMode === 'MOCK' ? 'in this demo workspace' : 'from SomniSense API (showing latest 4)'}
+        />
       )}
 
       <div className="dashboard-bottom-row">
         <section className="panel insight-panel">
           <div className="panel-heading"><div><span className="section-kicker">REVIEW WORKFLOW</span><h2>Items are prompts, not diagnoses</h2></div><span className="insight-icon"><CircleAlert size={18} /></span></div>
-          <p>Model flags are shown as <strong>Needs review</strong>. They do not confirm a condition and should be interpreted with the full monitoring context.</p>
+          <p>Model flags are shown as <strong>Needs review</strong> when available. They do not confirm a condition and should be interpreted with the full monitoring context.</p>
           <Link className="text-link" to="/patients">Review patient data <ArrowRight size={15} /></Link>
         </section>
         <section className="panel quick-action-panel">

@@ -1,0 +1,6 @@
+# SOMNISENSE Stage 1.1 QA E2E Test Dependencies
+# Install with: pip install -r scripts/qa/requirements.txt
+# Browser setup: playwright install chromium
+
+playwright==1.65.2
+greenlet>=3.1.1

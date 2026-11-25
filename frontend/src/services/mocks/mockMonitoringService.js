@@ -1,25 +1,49 @@
-import { devices, patients, predictionsByPatientId, readingsByPatientId, sessions } from './mockStore'
+import { devices, patients, predictionsByPatientId, readingsByPatientId, sessions } from './mockStore.js'
 
 const wait = (milliseconds = 300) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
-const freshnessFor = (timestamp) => {
-  if (!timestamp) return 'MISSING'
-  return Date.now() - new Date(timestamp).getTime() > 15 * 60_000 ? 'STALE' : 'FRESH'
+
+function buildCurrentDevice(device) {
+  if (!device) return null
+  return {
+    assignmentId: `mock-assign-${device.id}`,
+    deviceId: device.id,
+    deviceCode: device.deviceCode,
+    connectivityStatus: device.connectivityStatus,
+    lastSeenAt: device.lastSeenAt,
+    assignedAt: device.lastSeenAt,
+  }
 }
 
-function getPatientRow(patient) {
-  const device = devices.find((candidate) => candidate.assignedPatientId === patient.id)
+function buildActiveSession(session) {
+  if (!session) return null
+  return {
+    sessionId: session.id,
+    sessionCode: session.sessionCode,
+    startedAt: session.startedAt,
+  }
+}
+
+function buildLatestReading(reading) {
+  if (!reading) return null
+  return {
+    spo2: reading.spo2,
+    heartRate: reading.heartRate,
+    measuredAt: reading.measuredAt,
+  }
+}
+
+export function getPatientRow(patient) {
+  const device = devices.find((candidate) => candidate.assignedPatientId === patient.id) || null
   const patientReadings = readingsByPatientId[patient.id] || []
-  const latestReading = [...patientReadings].reverse().find((reading) => reading.spo2 !== null || reading.heartRate !== null)
-  const patientSession = sessions.find((session) => session.patientId === patient.id && session.status === 'ACTIVE')
-  const lastReadingAt = latestReading?.measuredAt || null
+  const latestRaw = patientReadings.length ? patientReadings[patientReadings.length - 1] : null
+  const patientSession =
+    sessions.find((session) => session.patientId === patient.id && session.status === 'ACTIVE') || null
 
   return {
     ...patient,
-    device,
-    session: patientSession || null,
-    latestReading: latestReading || null,
-    lastReadingAt,
-    freshness: freshnessFor(lastReadingAt),
+    currentDevice: buildCurrentDevice(device),
+    activeSession: buildActiveSession(patientSession),
+    latestReading: buildLatestReading(latestRaw),
     reviewStatus: predictionsByPatientId[patient.id]?.[0]?.predictionStatus || 'NONE',
   }
 }
@@ -27,26 +51,57 @@ function getPatientRow(patient) {
 export async function getDashboard() {
   await wait()
   const patientRows = patients.map(getPatientRow)
-  const dataIssues = patientRows.filter((patient) =>
-    patient.device && (patient.device.connectivityStatus === 'DISCONNECTED' || patient.freshness === 'STALE'),
+  const dataIssues = devices.filter(
+    (device) =>
+      device.isActive
+      && (device.connectivityStatus === 'DISCONNECTED' || device.connectivityStatus === 'STALE'),
   ).length
 
   return {
     summary: {
       patientCount: patients.length,
       activeSessions: sessions.filter((session) => session.status === 'ACTIVE').length,
-      itemsNeedingReview: Object.values(predictionsByPatientId).flat()
+      itemsNeedingReview: Object.values(predictionsByPatientId)
+        .flat()
         .filter((prediction) => prediction.predictionStatus === 'NEEDS_REVIEW').length,
       dataIssues,
     },
-    patients: patientRows,
+    patients: patientRows.slice(0, 4),
     dataMode: 'MOCK',
   }
 }
 
-export async function getPatients() {
+export async function getPatients(options = {}) {
   await wait()
-  return patients.map(getPatientRow)
+  const {
+    q = '',
+    sourceType = 'ALL',
+    status = 'ALL',
+    page = 0,
+    size = 20,
+  } = options
+
+  const queryText = q.trim().toLowerCase()
+  const filtered = patients.map(getPatientRow).filter((patient) => {
+    const haystack = `${patient.patientCode} ${patient.fullName} ${patient.alias || ''}`.toLowerCase()
+    const matchesQuery = !queryText || haystack.includes(queryText)
+    const matchesSource = !sourceType || sourceType === 'ALL' || patient.sourceType === sourceType
+    const matchesStatus = !status || status === 'ALL' || patient.status === status
+    return matchesQuery && matchesSource && matchesStatus
+  })
+
+  const totalElements = filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalElements / size))
+  const safePage = Math.min(Math.max(0, page), totalPages - 1)
+  const content = filtered.slice(safePage * size, (safePage + 1) * size)
+
+  return {
+    content,
+    page: safePage,
+    size,
+    totalElements,
+    totalPages: totalElements === 0 ? 0 : totalPages,
+  }
 }
 
 export async function getPatientOverview(patientId) {
@@ -55,21 +110,52 @@ export async function getPatientOverview(patientId) {
   if (!patient) {
     const error = new Error('Patient could not be found.')
     error.status = 404
+    error.code = 'RESOURCE_NOT_FOUND'
     throw error
   }
 
   const device = devices.find((candidate) => candidate.assignedPatientId === patientId) || null
-  const patientSession = sessions.find((session) => session.patientId === patientId && session.status === 'ACTIVE') || null
+  const patientSession =
+    sessions.find((session) => session.patientId === patientId && session.status === 'ACTIVE') || null
   const readings = readingsByPatientId[patientId] || []
-  const latestReading = [...readings].reverse().find((reading) => reading.spo2 !== null || reading.heartRate !== null) || null
+  const latestRaw = readings.length ? readings[readings.length - 1] : null
+  const latestSpo2Row = [...readings].reverse().find((r) => r.spo2 !== null) || null
+  const latestHrRow = [...readings].reverse().find((r) => r.heartRate !== null) || null
+
+  const latestReadings = patientSession
+    ? {
+        sessionId: patientSession.id,
+        sessionStatus: patientSession.status,
+        sourceType: device?.deviceType || patient.sourceType,
+        connectivityStatus: device?.connectivityStatus || 'UNKNOWN',
+        deviceLastSeenAt: device?.lastSeenAt || null,
+        latest: latestRaw,
+        lastSpo2: latestSpo2Row
+          ? { value: latestSpo2Row.spo2, measuredAt: latestSpo2Row.measuredAt }
+          : null,
+        lastHeartRate: latestHrRow
+          ? { value: latestHrRow.heartRate, measuredAt: latestHrRow.measuredAt }
+          : null,
+      }
+    : null
 
   return {
-    patient,
-    device,
-    session: patientSession,
+    patient: {
+      ...patient,
+      currentDevice: buildCurrentDevice(device),
+      activeSession: buildActiveSession(patientSession),
+      latestReading: buildLatestReading(latestRaw),
+    },
+    session: patientSession
+      ? {
+          ...patientSession,
+          sourceType: device?.deviceType || patient.sourceType,
+          deviceCode: device?.deviceCode || null,
+        }
+      : null,
+    latestReadings,
     readings,
     predictions: predictionsByPatientId[patientId] || [],
-    freshness: freshnessFor(latestReading?.measuredAt),
     dataMode: 'MOCK',
     mlAvailable: true,
   }

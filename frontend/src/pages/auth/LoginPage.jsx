@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useMockApi } from '../../services/api/apiConfig'
 
 export default function LoginPage() {
-  const { signIn, sessionExpired, error: authError } = useAuth()
+  const { signIn, sessionExpired, sessionInvalidReason, error: authError } = useAuth()
   const mockMode = useMockApi
   const navigate = useNavigate()
   const location = useLocation()
@@ -16,16 +16,21 @@ export default function LoginPage() {
     handleSubmit: handleFormSubmit,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm({ defaultValues: { username: '', password: '' } })
+  } = useForm({ defaultValues: { login: '', password: '' } })
 
   async function handleSubmit(credentials) {
     try {
-      await signIn(credentials)
+      await signIn({
+        login: credentials.login,
+        password: credentials.password,
+      })
       navigate(location.state?.from?.pathname || '/dashboard', { replace: true })
     } catch (loginError) {
       setError('root.server', {
         type: 'server',
-        message: loginError || 'Unable to sign in. Please try again.',
+        message: typeof loginError === 'string'
+          ? loginError
+          : loginError?.message || 'Unable to sign in. Please try again.',
       })
     }
   }
@@ -52,7 +57,7 @@ export default function LoginPage() {
             <div className="visual-reading"><span>SpO₂</span><strong>—<small>%</small></strong><i>Awaiting signal</i></div>
           </div>
         </div>
-        <div className="login-story-footer"><ShieldCheck size={15} /> Staff access only <span>·</span> Demo environment</div>
+        <div className="login-story-footer"><ShieldCheck size={15} /> Staff access only <span>·</span> {mockMode ? 'Demo environment' : 'Live backend'}</div>
       </section>
 
       <section className="login-form-panel">
@@ -64,10 +69,16 @@ export default function LoginPage() {
           <div className="login-heading">
             <span className="eyebrow">WELCOME BACK</span>
             <h2>Sign in to your workspace</h2>
-            <p>Use your staff account to continue.</p>
+            <p>Use your staff username or email to continue.</p>
           </div>
 
-          {sessionExpired && <div className="session-expired-notice" role="status">Your session expired. Sign in again to continue.</div>}
+          {sessionExpired && (
+            <div className="session-expired-notice" role="status">
+              {sessionInvalidReason === 'SESSION_INVALID'
+                ? 'Your session is no longer valid because your account changed or was signed out. Please sign in again.'
+                : 'Your session expired. Sign in again to continue.'}
+            </div>
+          )}
           {mockMode && (
             <div className="mock-auth-notice">
               <span className="notice-dot" />
@@ -76,24 +87,24 @@ export default function LoginPage() {
           )}
 
           <form className="login-form" onSubmit={handleFormSubmit(handleSubmit)} noValidate>
-            <label className="field-label" htmlFor="login-email">Work email</label>
+            <label className="field-label" htmlFor="login-identifier">Username or work email</label>
             <input
-              id="login-email"
+              id="login-identifier"
               className="form-input"
-              type="email"
+              type="text"
               autoComplete="username"
-              placeholder="you@organization.com"
-              aria-invalid={Boolean(errors.username)}
-              aria-describedby={errors.username ? 'login-email-error' : undefined}
-              {...register('username', {
-                required: 'Enter your work email.',
-                pattern: { value: /^\S+@\S+\.\S+$/, message: 'Enter a valid email address.' },
+              placeholder="admin or you@organization.com"
+              aria-invalid={Boolean(errors.login)}
+              aria-describedby={errors.login ? 'login-identifier-error' : undefined}
+              {...register('login', {
+                validate: (value) => value.trim().length > 0 || 'Enter your username or work email.',
+                maxLength: { value: 255, message: 'Login must be 255 characters or fewer.' },
               })}
             />
-            {errors.username && <span id="login-email-error" className="field-error" role="alert">{errors.username.message}</span>}
+            {errors.login && <span id="login-identifier-error" className="field-error" role="alert">{errors.login.message}</span>}
             <div className="field-label-row">
               <label className="field-label" htmlFor="login-password">Password</label>
-              <span className="field-hint">Demo account</span>
+              {mockMode && <span className="field-hint">Demo account</span>}
             </div>
             <div className="password-input-wrap">
               <input
@@ -104,7 +115,10 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 aria-invalid={Boolean(errors.password)}
                 aria-describedby={errors.password ? 'login-password-error' : undefined}
-                {...register('password', { required: 'Enter your password.' })}
+                {...register('password', {
+                  required: 'Enter your password.',
+                  maxLength: { value: 72, message: 'Password must be 72 characters or fewer.' },
+                })}
               />
               <button
                 className="password-toggle"
@@ -125,8 +139,8 @@ export default function LoginPage() {
           {mockMode && (
             <div className="demo-credentials">
               <strong>LOCAL DEMO CREDENTIALS</strong>
-              <p><span>Admin</span> admin@somnisense.local <code>SomniDemo123!</code></p>
-              <p><span>Operator</span> operator@somnisense.local <code>SomniDemo123!</code></p>
+              <p><span>Admin</span> admin / admin@somnisense.local <code>SomniDemo123!</code></p>
+              <p><span>Operator</span> operator / operator@somnisense.local <code>SomniDemo123!</code></p>
             </div>
           )}
           <div className="login-disclaimer">SomniSense is an educational monitoring prototype, not a medical diagnostic product.</div>

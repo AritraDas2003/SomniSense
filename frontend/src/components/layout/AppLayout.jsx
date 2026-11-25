@@ -17,6 +17,15 @@ const routeTitles = {
   '/devices': 'Devices',
 }
 
+function getInitials(user) {
+  const display = user?.name || user?.username || 'Staff'
+  const parts = display.trim().split(/[\s._-]+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  }
+  return display.slice(0, 2).toUpperCase()
+}
+
 export default function AppLayout() {
   const { user, signOut } = useAuth()
   const mockMode = useMockApi
@@ -28,10 +37,12 @@ export default function AppLayout() {
     ? 'Patient overview'
     : routeTitles[location.pathname] || 'SomniSense'
 
-  function logout() {
-    signOut()
+  async function logout() {
+    await signOut()
     navigate('/login', { replace: true })
   }
+
+  const displayName = user?.name || user?.username || 'Staff user'
 
   return (
     <div className="app-shell">
@@ -82,13 +93,16 @@ export default function AppLayout() {
                 aria-expanded={profileOpen}
                 onClick={() => setProfileOpen((open) => !open)}
               >
-                <span className="avatar">{user?.name?.split(' ').map((part) => part[0]).join('')}</span>
-                <span className="profile-copy"><strong>{user?.name}</strong><small>{user?.role}</small></span>
+                <span className="avatar">{getInitials(user)}</span>
+                <span className="profile-copy"><strong>{displayName}</strong><small>{user?.role}</small></span>
                 <ChevronDown size={15} />
               </button>
               {profileOpen && (
                 <div className="profile-menu">
-                  <div className="profile-menu-user"><CircleUserRound size={17} /> {user?.isMock ? 'Signed in with mock authentication' : 'Signed in as staff'}</div>
+                  <div className="profile-menu-user">
+                    <CircleUserRound size={17} />
+                    <span>{user?.isMock ? 'Signed in with mock auth' : (user?.email || 'Signed in as staff')}</span>
+                  </div>
                   <button onClick={logout}><LogOut size={16} /> Sign out</button>
                 </div>
               )}

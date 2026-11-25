@@ -10,19 +10,39 @@ import DevicesPage from '../pages/devices/DevicesPage'
 
 const PatientDetailsPage = lazy(() => import('../pages/patients/PatientDetailsPage'))
 
+function AuthLoadingFallback() {
+  return (
+    <div className="page-stack" style={{ padding: '48px 24px' }}>
+      <div className="panel loading-panel">
+        <span className="spinner" />
+        <span>Verifying staff session...</span>
+      </div>
+    </div>
+  )
+}
+
 function ProtectedRoute() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, initialized } = useAuth()
   const location = useLocation()
+  if (!initialized) {
+    return <AuthLoadingFallback />
+  }
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace state={{ from: location }} />
 }
 
 export default function AppRouter() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, initialized } = useAuth()
   return (
     <Routes>
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+        element={
+          !initialized
+            ? <AuthLoadingFallback />
+            : isAuthenticated
+              ? <Navigate to="/dashboard" replace />
+              : <LoginPage />
+        }
       />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
@@ -30,7 +50,14 @@ export default function AppRouter() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/patients" element={<PatientsPage />} />
           <Route path="/patients/new" element={<AddPatientPage />} />
-          <Route path="/patients/:patientId" element={<Suspense fallback={<div className="panel loading-panel"><span className="spinner" /><span>Loading patient overview...</span></div>}><PatientDetailsPage /></Suspense>} />
+          <Route
+            path="/patients/:patientId"
+            element={(
+              <Suspense fallback={<div className="panel loading-panel"><span className="spinner" /><span>Loading patient overview...</span></div>}>
+                <PatientDetailsPage />
+              </Suspense>
+            )}
+          />
           <Route path="/devices" element={<DevicesPage />} />
         </Route>
       </Route>

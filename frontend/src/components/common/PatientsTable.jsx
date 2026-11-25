@@ -8,48 +8,117 @@ function formatTime(value) {
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value))
 }
 
-export default function PatientsTable({ patients, compact = false }) {
-  const [query, setQuery] = useState('')
-  const [sourceFilter, setSourceFilter] = useState('ALL')
-  const [statusFilter, setStatusFilter] = useState('ALL')
-  const [page, setPage] = useState(1)
-  const pageSize = compact ? 4 : 6
+function getPatientInitials(fullName) {
+  return (fullName || '?')
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
 
-  const filteredPatients = useMemo(() => patients.filter((patient) => {
-    const searchText = `${patient.patientCode} ${patient.fullName} ${patient.alias || ''}`.toLowerCase()
-    const matchesQuery = searchText.includes(query.trim().toLowerCase())
-    const matchesSource = sourceFilter === 'ALL' || patient.sourceType === sourceFilter
-    const matchesStatus = statusFilter === 'ALL' || patient.freshness === statusFilter
-    return matchesQuery && matchesSource && matchesStatus
-  }), [patients, query, sourceFilter, statusFilter])
+export default function PatientsTable({
+  patients = [],
+  compact = false,
+  pageInfo = null,
+  onPageChange = null,
+  filters = null,
+  onFiltersChange = null,
+  workspaceLabel = 'in workspace',
+}) {
+  const [localQuery, setLocalQuery] = useState('')
+  const [localSource, setLocalSource] = useState('ALL')
+  const [localStatus, setLocalStatus] = useState('ALL')
 
-  const pageCount = Math.max(1, Math.ceil(filteredPatients.length / pageSize))
-  const visiblePatients = filteredPatients.slice((page - 1) * pageSize, page * pageSize)
+  const isServerDriven = Boolean(pageInfo && onFiltersChange)
+  const query = isServerDriven ? filters?.q ?? '' : localQuery
+  const sourceFilter = isServerDriven ? filters?.sourceType ?? 'ALL' : localSource
+  const statusFilter = isServerDriven ? filters?.status ?? 'ALL' : localStatus
 
-  function updateFilter(setter, value) {
-    setter(value)
-    setPage(1)
+  const visiblePatients = useMemo(() => {
+    if (isServerDriven) return patients
+    return patients.filter((patient) => {
+      const searchText = `${patient.patientCode} ${patient.fullName} ${patient.alias || ''}`.toLowerCase()
+      const matchesQuery = searchText.includes(query.trim().toLowerCase())
+      const matchesSource = sourceFilter === 'ALL' || patient.sourceType === sourceFilter
+      const matchesStatus = statusFilter === 'ALL' || patient.status === statusFilter
+      return matchesQuery && matchesSource && matchesStatus
+    })
+  }, [isServerDriven, patients, query, sourceFilter, statusFilter])
+
+  const totalElements = isServerDriven ? pageInfo.totalElements : visiblePatients.length
+  const currentPage = isServerDriven ? pageInfo.page : 0
+  const pageSize = isServerDriven ? pageInfo.size : Math.max(1, visiblePatients.length)
+  const totalPages = isServerDriven ? Math.max(1, pageInfo.totalPages || 1) : 1
+  const displayedRows = compact ? visiblePatients.slice(0, 4) : visiblePatients
+
+  function handleQueryChange(nextQuery) {
+    if (isServerDriven) {
+      onFiltersChange({ q: nextQuery, sourceType: sourceFilter, status: statusFilter })
+    } else {
+      setLocalQuery(nextQuery)
+    }
+  }
+
+  function handleSourceChange(nextSource) {
+    if (isServerDriven) {
+      onFiltersChange({ q: query, sourceType: nextSource, status: statusFilter })
+    } else {
+      setLocalSource(nextSource)
+    }
+  }
+
+  function handleStatusChange(nextStatus) {
+    if (isServerDriven) {
+      onFiltersChange({ q: query, sourceType: sourceFilter, status: nextStatus })
+    } else {
+      setLocalStatus(nextStatus)
+    }
   }
 
   return (
     <section className="panel patient-table-panel">
       <div className="table-toolbar">
         <div className="table-toolbar-title">
-          <div><h2>{compact ? 'Patients at a glance' : 'Patient directory'}</h2><p>{filteredPatients.length} records in this demo workspace</p></div>
+          <div>
+            <h2>{compact ? 'Patients at a glance' : 'Patient directory'}</h2>
+            <p>{totalElements} records {workspaceLabel}</p>
+          </div>
         </div>
         <div className="table-filters">
           <label className="search-field">
             <Search size={16} />
-            <input aria-label="Search patients" value={query} onChange={(event) => updateFilter(setQuery, event.target.value)} placeholder="Search patients..." />
+            <input
+              aria-label="Search patients"
+              value={query}
+              onChange={(event) => handleQueryChange(event.target.value)}
+              placeholder="Search patients..."
+            />
           </label>
-          <select aria-label="Filter by source" className="select-control filter-select" value={sourceFilter} onChange={(event) => updateFilter(setSourceFilter, event.target.value)}>
-            <option value="ALL">All sources</option><option value="SIMULATED">Simulated</option><option value="PHYSICAL">Physical</option>
+          <select
+            aria-label="Filter by source"
+            className="select-control filter-select"
+            value={sourceFilter}
+            onChange={(event) => handleSourceChange(event.target.value)}
+          >
+            <option value="ALL">All sources</option>
+            <option value="SIMULATED">Simulated</option>
+            <option value="PHYSICAL">Physical</option>
           </select>
-          <select aria-label="Filter by data freshness" className="select-control filter-select" value={statusFilter} onChange={(event) => updateFilter(setStatusFilter, event.target.value)}>
-            <option value="ALL">All data states</option><option value="FRESH">Fresh data</option><option value="STALE">Stale data</option><option value="MISSING">No readings</option>
+          <select
+            aria-label="Filter by patient status"
+            className="select-control filter-select"
+            value={statusFilter}
+            onChange={(event) => handleStatusChange(event.target.value)}
+          >
+            <option value="ALL">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
           </select>
         </div>
       </div>
+
       <div className="table-scroll">
         <table className="data-table">
           <thead>
@@ -59,48 +128,101 @@ export default function PatientsTable({ patients, compact = false }) {
               <th>Device / session</th>
               <th>SpO₂</th>
               <th>Heart rate</th>
-              <th>Latest reading</th>
+              <th>Latest reading / link</th>
               <th>Review</th>
               <th><span className="sr-only">Open patient</span></th>
             </tr>
           </thead>
           <tbody>
-            {visiblePatients.map((patient) => (
+            {displayedRows.map((patient) => (
               <tr key={patient.id}>
                 <td>
                   <Link className="patient-cell-link" to={`/patients/${patient.id}`}>
-                    <span className="patient-avatar">{patient.fullName.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span>
-                    <span className="patient-cell-copy"><strong>{patient.alias || patient.fullName}</strong><small>{patient.patientCode}</small></span>
+                    <span className="patient-avatar">{getPatientInitials(patient.fullName)}</span>
+                    <span className="patient-cell-copy">
+                      <strong>{patient.alias || patient.fullName}</strong>
+                      <small>{patient.patientCode}{patient.status === 'INACTIVE' ? ' · Inactive' : ''}</small>
+                    </span>
                   </Link>
                 </td>
                 <td><SourceBadge sourceType={patient.sourceType} /></td>
                 <td>
-                  <span className="table-main">{patient.device?.deviceCode || 'Not assigned'}</span>
-                  <small className="table-sub">{patient.session ? 'Session active' : patient.device ? 'No active session' : '—'}</small>
+                  <span className="table-main">{patient.currentDevice?.deviceCode || 'Not assigned'}</span>
+                  <small className="table-sub">
+                    {patient.activeSession
+                      ? `Session active (${patient.activeSession.sessionCode})`
+                      : patient.currentDevice
+                        ? 'No active session'
+                        : '—'}
+                  </small>
                 </td>
-                <td><span className="metric-value">{patient.latestReading?.spo2 == null ? '—' : `${patient.latestReading.spo2}%`}</span></td>
-                <td><span className="metric-value">{patient.latestReading?.heartRate == null ? '—' : `${patient.latestReading.heartRate} bpm`}</span></td>
                 <td>
-                  <span className="table-main">{formatTime(patient.lastReadingAt)}</span>
-                  <StatusBadge status={patient.freshness} className="table-freshness" />
+                  <span className="metric-value">
+                    {patient.latestReading?.spo2 == null ? '—' : `${patient.latestReading.spo2}%`}
+                  </span>
                 </td>
-                <td><StatusBadge status={patient.reviewStatus} /></td>
-                <td><Link className="table-open-link" to={`/patients/${patient.id}`} aria-label={`Open ${patient.alias || patient.fullName}`}><ArrowUpRight size={17} /></Link></td>
+                <td>
+                  <span className="metric-value">
+                    {patient.latestReading?.heartRate == null ? '—' : `${patient.latestReading.heartRate} bpm`}
+                  </span>
+                </td>
+                <td>
+                  <span className="table-main">{formatTime(patient.latestReading?.measuredAt)}</span>
+                  <StatusBadge
+                    status={patient.currentDevice?.connectivityStatus || 'UNKNOWN'}
+                    className="table-freshness"
+                  />
+                </td>
+                <td>
+                  {patient.reviewStatus
+                    ? <StatusBadge status={patient.reviewStatus} />
+                    : <span className="table-sub">Unavailable</span>}
+                </td>
+                <td>
+                  <Link
+                    className="table-open-link"
+                    to={`/patients/${patient.id}`}
+                    aria-label={`Open ${patient.alias || patient.fullName}`}
+                  >
+                    <ArrowUpRight size={17} />
+                  </Link>
+                </td>
               </tr>
             ))}
-            {visiblePatients.length === 0 && (
-              <tr><td className="table-empty" colSpan="8">{query || sourceFilter !== 'ALL' || statusFilter !== 'ALL' ? 'No patients match these filters.' : 'No patients have been added yet.'}</td></tr>
+            {displayedRows.length === 0 && (
+              <tr>
+                <td className="table-empty" colSpan="8">
+                  {query || sourceFilter !== 'ALL' || statusFilter !== 'ALL'
+                    ? 'No patients match these filters.'
+                    : 'No patients have been added yet.'}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
-      {!compact && (
+
+      {!compact && isServerDriven && (
         <div className="table-footer">
-          <span>Showing {filteredPatients.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, filteredPatients.length)} of {filteredPatients.length}</span>
+          <span>
+            Showing {totalElements ? currentPage * pageSize + 1 : 0}–{Math.min((currentPage + 1) * pageSize, totalElements)} of {totalElements}
+          </span>
           <div className="pagination">
-            <button className="button button-outline button-small" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
-            <span>Page {page} of {pageCount}</span>
-            <button className="button button-outline button-small" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}>Next</button>
+            <button
+              className="button button-outline button-small"
+              disabled={currentPage <= 0}
+              onClick={() => onPageChange(currentPage - 1)}
+            >
+              Previous
+            </button>
+            <span>Page {totalElements === 0 ? 1 : currentPage + 1} of {totalPages}</span>
+            <button
+              className="button button-outline button-small"
+              disabled={currentPage + 1 >= totalPages || totalElements === 0}
+              onClick={() => onPageChange(currentPage + 1)}
+            >
+              Next
+            </button>
           </div>
         </div>
       )}
