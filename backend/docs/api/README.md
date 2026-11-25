@@ -1,7 +1,6 @@
 # SomniSense Backend API — Index for the Frontend Team
 
-**Contract state:** first milestone (Stages 1–9) **implemented, tested (165 automated tests) and verified
-end to end** with the Postman collection (32 requests, 69 checks). Updated 2026-11-21.
+**Contract state:** Backend Stages 1–9 and Stage 2 Prediction Persistence & Retrieval APIs **implemented and verified (176/176 automated Maven tests passing, updated 2026-11-26)**; core Stages 1–9 were also **verified end to end** with the Postman collection (32 requests, 69 checks, 2026-11-21).
 
 The React app talks **only** to this Spring Boot API. It never calls PostgreSQL or the Python AI/simulator
 service directly.
