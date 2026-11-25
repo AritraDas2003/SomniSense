@@ -2,9 +2,10 @@
 ## Python FastAPI Model C Inference Sidecar Architecture & Frozen Artifact Verification
 
 > **Audit Date:** 2026-11-26  
-> **Authoritative Team Workspace:** `C:\Users\LORD\Downloads\Minor_Project\SomniSense_Team` (branch `stage2/prediction-persistence` @ `95880508f84dc830fb4d49b29618bee1e73d20c9`)  
+> **Document Type:** Historical Pre-Implementation Audit (Stage 3 Planning Baseline)  
+> **Baseline Audited:** `stage2/prediction-persistence` @ `95880508f84dc830fb4d49b29618bee1e73d20c9`  
 > **Preserved Prototype Workspace (Read-Only):** `C:\Users\LORD\Downloads\Minor_Project\SomniSense`  
-> **Status:** **AUDIT COMPLETE — READY FOR REVIEW (NO STAGE 3 IMPLEMENTATION STARTED)**
+> **Status:** **HISTORICAL AUDIT — SUPERSEDED BY IMPLEMENTATION** (see [STAGE3_IMPLEMENTATION_REPORT.md](STAGE3_IMPLEMENTATION_REPORT.md) on `stage3/fastapi-model-c-integration` @ `398b41d6bf3f461c05b15aaada6d64547e5a7e64`)
 
 ---
 
