@@ -202,8 +202,8 @@ public class PredictionService {
         if (command.getPredictedClass() != null || command.getConfidenceScore() != null) {
             throw new InvalidRequestException(status + " prediction must not contain predictedClass or confidenceScore");
         }
-        if (status == PredictionStatus.REJECTED && qualityStatus != null && qualityStatus != InputQualityStatus.REJECTED) {
-            throw new InvalidRequestException("REJECTED prediction must have REJECTED inputQualityStatus");
+        if (status == PredictionStatus.REJECTED && qualityStatus == InputQualityStatus.VALID) {
+            throw new InvalidRequestException("REJECTED prediction cannot have VALID inputQualityStatus");
         }
         if (status == PredictionStatus.ERROR && errorMessage == null) {
             throw new InvalidRequestException("errorMessage is required when predictionStatus is ERROR");

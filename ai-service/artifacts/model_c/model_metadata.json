@@ -1,0 +1,148 @@
+{
+  "model_id": "phase7_model_c",
+  "model_version": "1.0.0",
+  "model_type": "LogisticRegressionPipeline",
+  "created_at": "2026-11-17 15:34:57 UTC",
+  "description": "Final production inference pipeline for Phase 7 Model C sleep apnea detector",
+  "authoritative_gate": "Gate 7",
+  "git_branch": "phase7/sliding-window-engine",
+  "git_commit_baseline": "901fe9aeb49aef743b4939f4c0e5fb4f11cf344a",
+  "architecture": {
+    "steps": [
+      "imputer",
+      "scaler",
+      "classifier"
+    ],
+    "imputer": {
+      "class": "SimpleImputer",
+      "strategy": "median",
+      "statistics": {
+        "spo2_mean": 93.58333333333331,
+        "spo2_min": 92.0,
+        "spo2_max": 95.0,
+        "spo2_std": 0.7507058825091877,
+        "spo2_rolling_baseline": 95.0,
+        "spo2_max_desaturation_depth": 3.0,
+        "spo2_time_below_90": 0.0,
+        "spo2_time_below_95": 45.0,
+        "hr_mean": 63.56666666666667,
+        "hr_min": 57.0,
+        "hr_max": 71.0,
+        "hr_std": 2.846893440205833,
+        "hr_range": 11.0,
+        "hr_slope": -0.0003390772389693,
+        "hr_sampled_rmssd": 1.3148435493708115,
+        "hr_mean_absolute_diff": 0.7288135593220338
+      }
+    },
+    "scaler": {
+      "class": "StandardScaler",
+      "with_mean": true,
+      "with_std": true,
+      "mean": {
+        "spo2_mean": 92.63235273802215,
+        "spo2_min": 89.85409532480162,
+        "spo2_max": 95.12927921869665,
+        "spo2_std": 1.6959303206258811,
+        "spo2_rolling_baseline": 95.04405849429436,
+        "spo2_max_desaturation_depth": 5.19387537632295,
+        "spo2_time_below_90": 8.304379312842054,
+        "spo2_time_below_95": 37.04222058990886,
+        "hr_mean": 64.16453657384022,
+        "hr_min": 57.87912144756308,
+        "hr_max": 71.89787810757404,
+        "hr_std": 3.65517996941041,
+        "hr_range": 14.018756660010967,
+        "hr_slope": 0.00039420319202948875,
+        "hr_sampled_rmssd": 1.6967364239620113,
+        "hr_mean_absolute_diff": 0.8753335217894131
+      },
+      "scale": {
+        "spo2_mean": 3.4177738521992365,
+        "spo2_min": 6.326416009004316,
+        "spo2_max": 1.7601222874348665,
+        "spo2_std": 2.092645201639441,
+        "spo2_rolling_baseline": 1.5638716482676527,
+        "spo2_max_desaturation_depth": 6.137040480103105,
+        "spo2_time_below_90": 14.809760310957257,
+        "spo2_time_below_95": 23.255516136965042,
+        "hr_mean": 9.373858911446407,
+        "hr_min": 9.183698975395632,
+        "hr_max": 11.644836611496883,
+        "hr_std": 2.6626419242720796,
+        "hr_range": 9.83503479376807,
+        "hr_slope": 0.11109025881407612,
+        "hr_sampled_rmssd": 1.4596215420152379,
+        "hr_mean_absolute_diff": 0.6278114268120674
+      }
+    },
+    "classifier": {
+      "class": "LogisticRegression",
+      "penalty": "l2",
+      "C": 1.0,
+      "solver": "lbfgs",
+      "max_iter": 1000,
+      "random_state": 42,
+      "intercept": 0.2877293864654034,
+      "coefficients": {
+        "spo2_mean": 1.6533175184165525,
+        "spo2_min": -4.893490633774758,
+        "spo2_max": 0.8560567222445439,
+        "spo2_std": -1.8506010828634112,
+        "spo2_rolling_baseline": 0.13045106008863036,
+        "spo2_max_desaturation_depth": -0.569017735469549,
+        "spo2_time_below_90": 0.2052904836941693,
+        "spo2_time_below_95": 0.6590981465389623,
+        "hr_mean": -1.6093317851381685,
+        "hr_min": 0.6464535708529312,
+        "hr_max": 0.8489952316943274,
+        "hr_std": -0.05509104328148137,
+        "hr_range": 0.4015822865454865,
+        "hr_slope": 0.06621937528235408,
+        "hr_sampled_rmssd": -0.07761269283671517,
+        "hr_mean_absolute_diff": 0.1661392011271961
+      },
+      "n_iter": 81
+    }
+  },
+  "training_cohort": {
+    "total_windows": 96659,
+    "patient_count": 50,
+    "positive_windows": 49382,
+    "negative_windows": 47277,
+    "positive_prevalence_pct": 51.09,
+    "window_duration_seconds": 60.0,
+    "window_stride_seconds": 10.0,
+    "source_features_sha256": "f2155bca132ebfeadccd607ec53b0b53561f2b2dace5dd97b7c88e7a2eee4e4f",
+    "source_labels_sha256": "99a2e612b17e6828c2159f0bedb1cfb53e125a10325a50dc56cb127fa48821a7"
+  },
+  "operating_policy": {
+    "decision_threshold": 0.5,
+    "temporal_availability_rule": "t_avail = w_end",
+    "observation_window_seconds": 60.0,
+    "stride_seconds": 10.0,
+    "target_overlap_seconds": 10.0
+  },
+  "environment": {
+    "python_version": "3.14.7",
+    "os_platform": "Windows-11-10.0.26100-SP0",
+    "scikit_learn_version": "1.9.1",
+    "joblib_version": "1.6.0",
+    "numpy_version": "2.5.3",
+    "pandas_version": "3.0.5"
+  },
+  "validation_benchmark_reference": {
+    "cross_validation_evaluation": "Gate 5 Patient-Clustered 5-Fold CV (N=96,659)",
+    "pooled_auroc": 0.850019,
+    "pooled_auroc_ci95": [
+      0.8032,
+      0.8859
+    ],
+    "pooled_auprc": 0.817601,
+    "pooled_auprc_ci95": [
+      0.7337,
+      0.8846
+    ],
+    "note": "Cross-validation performance established in Gate 5. Final model is fitted on full cohort for inference."
+  }
+}

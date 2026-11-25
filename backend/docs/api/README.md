@@ -1,6 +1,6 @@
 # SomniSense Backend API — Index for the Frontend Team
 
-**Contract state:** Backend Stages 1–9 and Stage 2 Prediction Persistence & Retrieval APIs **implemented and verified (176/176 automated Maven tests passing, updated 2026-11-26)**; core Stages 1–9 were also **verified end to end** with the Postman collection (32 requests, 69 checks, 2026-11-21).
+**Contract state:** Backend Stages 1–9, Stage 2 Prediction Persistence & Retrieval APIs, and Stage 3 Internal Model C Sidecar Integration **implemented and verified (181/181 automated Maven tests + 7/7 Python AI sidecar tests passing, updated 2026-11-26)**; core Stages 1–9 were also **verified end to end** with the Postman collection (32 requests, 69 checks, 2026-11-21). Automated window scheduling (Stage 4) and React prediction UI wiring remain deferred.
 
 The React app talks **only** to this Spring Boot API. It never calls PostgreSQL or the Python AI/simulator
 service directly.
@@ -18,7 +18,7 @@ service directly.
 | Monitoring sessions | [SESSIONS.md](SESSIONS.md) | ✅ Implemented and tested | Yes |
 | Reading history and latest values | [READINGS.md](READINGS.md) | ✅ Implemented and tested | Yes |
 | Reading ingestion (machine only) | [INGESTION.md](INGESTION.md) | ✅ Implemented and tested | — not for the browser |
-| Predictions / AI results | [PREDICTIONS.md](PREDICTIONS.md) | ✅ Persistence & retrieval APIs implemented and tested (Stage 2; 176/176 tests); Model C sidecar pending Stage 3 | History/latest contracts ready; live inference pending Stage 3 |
+| Predictions / AI results | [PREDICTIONS.md](PREDICTIONS.md) | ✅ Persistence, retrieval APIs & internal Model C sidecar integration tested (181/181 Java, 7/7 Python); Stage 4 scheduler pending | History/latest contracts ready; live scheduler pending Stage 4 |
 | Alerts / event review | — | ⏳ Planned (needs a storage decision; no table in the schema) | Keep mocks |
 | Simulator controls | — | ⏳ Planned (needs the Python contract) | Keep mocks |
 | Live push updates (SSE/WebSocket) | — | ⏳ Planned. For now, poll `/sessions/{id}/readings/latest` | Poll |

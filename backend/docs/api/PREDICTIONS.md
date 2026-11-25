@@ -1,6 +1,6 @@
 # SomniSense API — Session Predictions (staff)
 
-**Status:** Persistence and retrieval endpoints implemented and verified (Stage 2, 2026-11-26; 176/176 Maven tests passing against `somnisense_test_db`). Live Model C inference orchestration arrives in Stage 3. Session cookie as in [AUTH.md](AUTH.md). Errors follow [ERRORS.md](ERRORS.md).
+**Status:** Persistence, retrieval endpoints, and internal Model C FastAPI sidecar client implemented and verified (Stage 3, 2026-11-26; 181/181 Maven tests + 7/7 Python AI sidecar tests passing). Automated window scheduling arrives in Stage 4. Session cookie as in [AUTH.md](AUTH.md). Errors follow [ERRORS.md](ERRORS.md).
 
 **Roles:** `ADMIN` and `OPERATOR`. Prediction records are produced internally by Spring Boot inference orchestration and are never submitted directly by browser clients.
 
@@ -58,7 +58,7 @@
 | `predictedClass` | enum string | Yes | `APNEA_EVENT`, `NORMAL`, or `null` (always `null` for `REJECTED` / `ERROR`) |
 | `confidenceScore` | number | Yes | Positive-class probability in `[0, 1]` (6 decimal places), or `null` for `REJECTED` / `ERROR` |
 | `predictionStatus` | enum string | No | `COMPLETED`, `NEEDS_REVIEW`, `REJECTED`, `ERROR` |
-| `inputQualityStatus` | enum string | Yes | `VALID`, `DEGRADED`, `REJECTED`, or `null` |
+| `inputQualityStatus` | enum string | Yes | `VALID` (for `COMPLETED`/`NEEDS_REVIEW`), `DEGRADED` or `REJECTED` (both mapped to `predictionStatus: "REJECTED"` with `predictedClass: null`, `confidenceScore: null`), or `null` |
 | `processedAt` | ISO-8601 UTC | No | Server/inference completion timestamp |
 | `processingTimeMs` | integer | Yes | Non-negative inference latency in milliseconds |
 | `errorMessage` | string | Yes | Safe rejection or error description (no stack traces) |

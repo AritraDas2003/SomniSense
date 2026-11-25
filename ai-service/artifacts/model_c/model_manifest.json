@@ -1,0 +1,49 @@
+{
+  "manifest_version": "1.0.0",
+  "package_name": "somnisense-phase7-model-c",
+  "created_at": "2026-11-17 15:38:13 UTC",
+  "git_branch": "phase7/sliding-window-engine",
+  "git_commit_baseline": "901fe9aeb49aef743b4939f4c0e5fb4f11cf344a",
+  "artifacts": [
+    {
+      "relative_path": "README.md",
+      "size_bytes": 6071,
+      "sha256": "2c5442e63c51c7b743422dc340647bd83d0a27ab8daa4f2a3a1137f429c21192"
+    },
+    {
+      "relative_path": "feature_schema.json",
+      "size_bytes": 7634,
+      "sha256": "c4d1b2e26a15569cef6328d8e4d06f5dc5677f0d8b74f709f30c104715d472f7"
+    },
+    {
+      "relative_path": "inference.py",
+      "size_bytes": 10774,
+      "sha256": "eeae1f80aff0cc477398cd7b1a3d9be3c7e5d2b4c8ee775e1edd284bd87928bb"
+    },
+    {
+      "relative_path": "model_c_pipeline.joblib",
+      "size_bytes": 1553,
+      "sha256": "faef00b08c6406bb0277c6ca05f15239acfc8365561d9c9a07eba3554939a6ca"
+    },
+    {
+      "relative_path": "model_metadata.json",
+      "size_bytes": 5190,
+      "sha256": "02304cc6c5fa958d818bf899ab067c74d01c7d1a97580c63baf2ab669cf5a714"
+    },
+    {
+      "relative_path": "tests\\test_inference.py",
+      "size_bytes": 6777,
+      "sha256": "b7fae2418a400ce9a509afb3c74ec15c6c3a0e5c7ee76d55fa01102f346a0f68"
+    },
+    {
+      "relative_path": "tests\\test_input_validation.py",
+      "size_bytes": 5244,
+      "sha256": "12083c657f255e07fc7ac71555de55992524c44b1ced50e23ac4d0d95ba76fef"
+    },
+    {
+      "relative_path": "tests\\test_model_loading.py",
+      "size_bytes": 3203,
+      "sha256": "7133d2b31cd7acb51011c60cb80ada2262aaac866e16a236b5b971c939bb8266"
+    }
+  ]
+}

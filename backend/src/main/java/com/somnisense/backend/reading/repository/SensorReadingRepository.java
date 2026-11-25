@@ -22,6 +22,14 @@ public interface SensorReadingRepository extends JpaRepository<SensorReading, UU
     Page<SensorReading> findWindow(@Param("sessionId") UUID sessionId, @Param("from") Instant from,
                                    @Param("to") Instant to, Pageable pageable);
 
+    /** Deterministic causal context readings in [from, to) ordered by (measuredAt, receivedAt, id). */
+    @Query("select r from SensorReading r where r.sessionId = :sessionId "
+            + "and r.measuredAt >= :from and r.measuredAt < :to "
+            + "order by r.measuredAt asc, r.receivedAt asc, r.id asc")
+    List<SensorReading> findWindowOrdered(@Param("sessionId") UUID sessionId,
+                                          @Param("from") Instant from,
+                                          @Param("to") Instant to);
+
     /** The most recent reading of a session, whatever its values (may contain nulls = dropout). */
     Optional<SensorReading> findFirstBySessionIdOrderByMeasuredAtDesc(UUID sessionId);
 

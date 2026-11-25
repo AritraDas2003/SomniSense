@@ -121,6 +121,23 @@ class PredictionServiceTest {
         assertThat(rejected.getPrediction().getPredictionStatus()).isEqualTo(PredictionStatus.REJECTED);
         assertThat(rejected.getPrediction().getInputQualityStatus()).isEqualTo(InputQualityStatus.REJECTED);
 
+        RecordPredictionResult degradedRejected = predictionService.recordPrediction(new RecordPredictionCommand(
+                session.getId(), MODEL_VERSION, t0.plusSeconds(60), t0.plusSeconds(90),
+                null, null, PredictionStatus.REJECTED, InputQualityStatus.DEGRADED,
+                t0.plusSeconds(91), 4, "SENSITIVITY_ONLY_DEGRADED_CHANNEL"));
+
+        assertThat(degradedRejected.isCreated()).isTrue();
+        assertThat(degradedRejected.getPrediction().getPredictedClass()).isNull();
+        assertThat(degradedRejected.getPrediction().getConfidenceScore()).isNull();
+        assertThat(degradedRejected.getPrediction().getPredictionStatus()).isEqualTo(PredictionStatus.REJECTED);
+        assertThat(degradedRejected.getPrediction().getInputQualityStatus()).isEqualTo(InputQualityStatus.DEGRADED);
+
+        assertThatThrownBy(() -> predictionService.recordPrediction(new RecordPredictionCommand(
+                session.getId(), MODEL_VERSION, t0.plusSeconds(90), t0.plusSeconds(120),
+                null, null, PredictionStatus.REJECTED, InputQualityStatus.VALID,
+                t0.plusSeconds(121), 4, "Invalid")))
+                .isInstanceOf(InvalidRequestException.class);
+
         RecordPredictionResult error = predictionService.recordPrediction(new RecordPredictionCommand(
                 session.getId(), MODEL_VERSION, t0.plusSeconds(30), t0.plusSeconds(60),
                 null, null, PredictionStatus.ERROR, null,
