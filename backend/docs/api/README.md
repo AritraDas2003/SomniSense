@@ -19,7 +19,7 @@ service directly.
 | Monitoring sessions | [SESSIONS.md](SESSIONS.md) | ✅ Implemented and tested | Yes |
 | Reading history and latest values | [READINGS.md](READINGS.md) | ✅ Implemented and tested | Yes |
 | Reading ingestion (machine only) | [INGESTION.md](INGESTION.md) | ✅ Implemented and tested | — not for the browser |
-| Predictions / AI results | — | ⏳ Planned (needs the AI lead's contract) | Keep mocks |
+| Predictions / AI results | [PREDICTIONS.md](PREDICTIONS.md) | ✅ Persistence & retrieval APIs implemented and tested (Stage 2; 176/176 tests); Model C sidecar pending Stage 3 | History/latest contracts ready; live inference pending Stage 3 |
 | Alerts / event review | — | ⏳ Planned (needs a storage decision; no table in the schema) | Keep mocks |
 | Simulator controls | — | ⏳ Planned (needs the Python contract) | Keep mocks |
 | Live push updates (SSE/WebSocket) | — | ⏳ Planned. For now, poll `/sessions/{id}/readings/latest` | Poll |
@@ -51,6 +51,9 @@ service directly.
   | enrollmentStatus | `PENDING`, `ENROLLED`, `SETUP_REQUIRED` |
   | connectivityStatus | `CONNECTED`, `STALE`, `DISCONNECTED`, `UNKNOWN` |
   | session status | `ACTIVE`, `ENDED`, `CANCELLED` |
+  | predictedClass | `APNEA_EVENT`, `NORMAL` |
+  | predictionStatus | `COMPLETED`, `NEEDS_REVIEW`, `REJECTED`, `ERROR` |
+  | inputQualityStatus | `VALID`, `DEGRADED`, `REJECTED` |
 
 - **`null` means "no value".** In particular, `spo2` and `heartRate` are `null` during a dropout. Show a gap
   or "no reading", **never 0**.

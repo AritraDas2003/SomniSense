@@ -29,7 +29,7 @@ class BackendApplicationTests {
 	}
 
 	@Test
-	void flywayCreatedExactlyTheTenApprovedTables() {
+	void flywayCreatedExactlyTheApprovedTables() {
 		List<String> tables = jdbcTemplate.queryForList(
 				"select table_name from information_schema.tables "
 						+ "where table_schema = 'public' and table_name <> 'flyway_schema_history' "
@@ -38,6 +38,6 @@ class BackendApplicationTests {
 		assertEquals(List.of(
 				"audit_logs", "device_assignments", "devices", "monitoring_sessions",
 				"patient_contacts", "patient_medical_details", "patients", "predictions",
-				"sensor_readings", "users"), tables);
+				"sensor_readings", "simulation_runs", "users"), tables);
 	}
 }
