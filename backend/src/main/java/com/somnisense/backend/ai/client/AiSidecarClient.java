@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class AiSidecarClient {
 
     public AiEvaluateWindowResponse evaluateWindow(AiEvaluateWindowRequest request) {
         if (properties.getApiKey().length() < MIN_KEY_LENGTH) {
-            throw new AiSidecarException("Internal AI sidecar API key is not configured");
+            throw new AiSidecarException("Internal AI sidecar API key is not configured", false);
         }
 
         String correlationId = MDC.get("correlationId");
@@ -56,7 +57,7 @@ public class AiSidecarClient {
         try {
             payload = jsonMapper.writeValueAsString(request);
         } catch (Exception ex) {
-            throw new AiSidecarException("Failed to serialize AI evaluation request", ex);
+            throw new AiSidecarException("Failed to serialize AI evaluation request", ex, null, false);
         }
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
@@ -72,19 +73,31 @@ public class AiSidecarClient {
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             int status = response.statusCode();
             if (status < 200 || status >= 300) {
-                log.warn("AI sidecar returned HTTP {} for session {} [cid={}]", status, request.sessionId(), correlationId);
-                throw new AiSidecarException("AI sidecar returned HTTP " + status);
+                boolean retryable = isRetryableHttpStatus(status);
+                log.warn("AI sidecar returned HTTP {} (retryable={}) for session {} [cid={}]",
+                        status, retryable, request.sessionId(), correlationId);
+                throw new AiSidecarException("AI sidecar returned HTTP " + status, status, retryable);
             }
-            AiEvaluateWindowResponse parsed = jsonMapper.readValue(response.body(), AiEvaluateWindowResponse.class);
+            AiEvaluateWindowResponse parsed;
+            try {
+                parsed = jsonMapper.readValue(response.body(), AiEvaluateWindowResponse.class);
+            } catch (JacksonException ex) {
+                throw new AiSidecarException("AI sidecar returned malformed JSON response", ex, status, false);
+            }
             if (parsed == null || parsed.predictionStatus() == null) {
-                throw new AiSidecarException("AI sidecar returned incomplete evaluation payload");
+                throw new AiSidecarException("AI sidecar returned incomplete evaluation payload", status, false);
             }
             return parsed;
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new AiSidecarException("AI sidecar request interrupted", ex);
+            throw new AiSidecarException("AI sidecar request interrupted", ex, null, true);
         } catch (IOException ex) {
-            throw new AiSidecarException("AI sidecar communication failed: " + ex.getClass().getSimpleName(), ex);
+            throw new AiSidecarException("AI sidecar communication failed: " + ex.getClass().getSimpleName(), ex, null, true);
         }
+    }
+
+    /** Transient upstream rate limiting or server errors are retryable; 400/401/403/422 etc. are not. */
+    public static boolean isRetryableHttpStatus(int status) {
+        return status == 408 || status == 429 || status >= 500;
     }
 }

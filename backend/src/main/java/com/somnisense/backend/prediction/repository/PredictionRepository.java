@@ -33,4 +33,10 @@ public interface PredictionRepository extends JpaRepository<Prediction, UUID> {
     /** Looks up a prediction matching the V5 unique constraint. */
     Optional<Prediction> findBySessionIdAndModelVersionAndWindowStartAndWindowEnd(
             UUID sessionId, String modelVersion, Instant windowStart, Instant windowEnd);
+
+    /** Returns the furthest evaluated windowEnd for this session and model version. */
+    @Query("select max(p.windowEnd) from Prediction p "
+            + "where p.sessionId = :sessionId and p.modelVersion = :modelVersion")
+    Optional<Instant> findMaxWindowEnd(@Param("sessionId") UUID sessionId,
+                                       @Param("modelVersion") String modelVersion);
 }

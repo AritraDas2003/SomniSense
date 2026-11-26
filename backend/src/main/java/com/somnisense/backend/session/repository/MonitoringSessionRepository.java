@@ -30,6 +30,28 @@ public interface MonitoringSessionRepository extends JpaRepository<MonitoringSes
 
     List<MonitoringSession> findByStatusInOrderByStartedAtAscIdAsc(Collection<SessionStatus> statuses);
 
+    /**
+     * Eligible ACTIVE sessions plus ENDED sessions that still have at least one complete unevaluated
+     * window (windowEnd <= endedAt) for the given model version.
+     */
+    @Query(value = "select * from monitoring_sessions s "
+            + "where s.status = 'ACTIVE' "
+            + "or (s.status = 'ENDED' and s.ended_at is not null "
+            + "    and s.ended_at >= s.started_at + (cast(:windowDurationSeconds as bigint) * interval '1 second') "
+            + "    and coalesce("
+            + "          greatest("
+            + "            (select max(p.window_end) from predictions p where p.session_id = s.id and p.model_version = :modelVersion), "
+            + "            (select max(j.window_end) from inference_window_jobs j where j.session_id = s.id and j.model_version = :modelVersion)"
+            + "          ) + (cast(:windowStrideSeconds as bigint) * interval '1 second'), "
+            + "          s.started_at + (cast(:windowDurationSeconds as bigint) * interval '1 second')"
+            + "        ) <= s.ended_at) "
+            + "order by s.started_at asc, s.id asc",
+            nativeQuery = true)
+    List<MonitoringSession> findCandidateSessionsForScheduling(
+            @Param("modelVersion") String modelVersion,
+            @Param("windowDurationSeconds") long windowDurationSeconds,
+            @Param("windowStrideSeconds") long windowStrideSeconds);
+
     /** Loads a session and locks its row (prevents end + cancel racing each other). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from MonitoringSession s where s.id = :id")
