@@ -26,6 +26,10 @@ public interface MonitoringSessionRepository extends JpaRepository<MonitoringSes
     /** Active sessions for a page of patients (dashboard) in one query. */
     List<MonitoringSession> findByPatientIdInAndStatus(Collection<UUID> patientIds, SessionStatus status);
 
+    List<MonitoringSession> findByStatusOrderByStartedAtAscIdAsc(SessionStatus status);
+
+    List<MonitoringSession> findByStatusInOrderByStartedAtAscIdAsc(Collection<SessionStatus> statuses);
+
     /** Loads a session and locks its row (prevents end + cancel racing each other). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from MonitoringSession s where s.id = :id")

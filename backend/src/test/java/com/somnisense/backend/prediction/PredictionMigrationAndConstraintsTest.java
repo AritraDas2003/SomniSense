@@ -126,9 +126,9 @@ class PredictionMigrationAndConstraintsTest {
                 42L, 1.00, 1.00, null, "PENDING", 0L, java.sql.Timestamp.from(t0), java.sql.Timestamp.from(t0)))
                 .isInstanceOf(DataIntegrityViolationException.class);
 
-        // Valid row succeeds
+        // Valid row succeeds (PAUSED respects V6 chk_simulation_runs_running_has_lease)
         jdbcTemplate.update(insert, UUID.randomUUID(), session.getId(), "S1_NORMAL",
-                42L, 1.00, 1.00, "CLEAN", "RUNNING", 10L, java.sql.Timestamp.from(t0), java.sql.Timestamp.from(t0.plusSeconds(10)));
+                42L, 1.00, 1.00, "CLEAN", "PAUSED", 10L, java.sql.Timestamp.from(t0), java.sql.Timestamp.from(t0.plusSeconds(10)));
 
         // Second simulation_runs row for same session rejected by UNIQUE constraint
         assertThatThrownBy(() -> jdbcTemplate.update(insert, UUID.randomUUID(), session.getId(), "S2_APNEA",

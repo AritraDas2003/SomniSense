@@ -36,8 +36,8 @@ class BackendApplicationTests {
 						+ "order by table_name",
 				String.class);
 		assertEquals(List.of(
-				"audit_logs", "device_assignments", "devices", "monitoring_sessions",
-				"patient_contacts", "patient_medical_details", "patients", "predictions",
-				"sensor_readings", "simulation_runs", "users"), tables);
+				"audit_logs", "device_assignments", "devices", "inference_window_jobs",
+				"monitoring_sessions", "patient_contacts", "patient_medical_details", "patients",
+				"predictions", "sensor_readings", "simulation_runs", "users"), tables);
 	}
 }

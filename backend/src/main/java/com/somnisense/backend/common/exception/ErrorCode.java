@@ -57,6 +57,17 @@ public enum ErrorCode {
     DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "Request conflicts with existing data"),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Content type not supported; use application/json"),
 
+    // Simulator control & fencing (Stage 4)
+    SIMULATION_FENCING_REQUIRED(HttpStatus.CONFLICT, "Simulation ingestion requires simulationRunId and workerGeneration"),
+    SIMULATION_MISMATCH(HttpStatus.CONFLICT, "simulationRunId does not match the session's active simulation run"),
+    SIMULATION_NOT_RUNNING(HttpStatus.CONFLICT, "Simulation run is not RUNNING; readings rejected"),
+    STALE_WORKER_GENERATION(HttpStatus.CONFLICT, "Stale simulator workerGeneration; stop orphan worker"),
+    SIMULATION_LEASE_EXPIRED(HttpStatus.CONFLICT, "Simulation worker lease has expired; resume required"),
+    SIMULATION_ALREADY_RUNNING(HttpStatus.CONFLICT, "Simulation run is already RUNNING for this session"),
+    SIMULATION_INVALID_STATE(HttpStatus.CONFLICT, "Simulation run cannot perform this transition in its current state"),
+    SIMULATION_DEVICE_NOT_SIMULATED(HttpStatus.CONFLICT, "Simulation control is only permitted for SIMULATED devices"),
+    SIMULATION_WORKER_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "Simulator worker could not be reached or rejected the command"),
+
     // 500 - our fault; details go to the server log only
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
 

@@ -15,17 +15,23 @@ import com.somnisense.backend.device.repository.DeviceRepository;
 import com.somnisense.backend.patient.entity.Patient;
 import com.somnisense.backend.patient.entity.PatientStatus;
 import com.somnisense.backend.patient.repository.PatientRepository;
+import com.somnisense.backend.prediction.service.InferenceJobService;
 import com.somnisense.backend.session.dto.SessionResponse;
 import com.somnisense.backend.session.entity.MonitoringSession;
 import com.somnisense.backend.session.entity.SessionStatus;
 import com.somnisense.backend.session.repository.MonitoringSessionRepository;
+import com.somnisense.backend.simulation.entity.SimulationRun;
+import com.somnisense.backend.simulation.service.SimulationLifecycleService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.Map;
@@ -61,16 +67,26 @@ public class SessionService {
     private final DeviceRepository deviceRepository;
     private final SessionCodeGenerator codeGenerator;
     private final AuditService auditService;
+    private final SimulationLifecycleService simulationLifecycleService;
+    private final InferenceJobService inferenceJobService;
+    private final TransactionTemplate transactionTemplate;
 
+    @Autowired
     public SessionService(MonitoringSessionRepository sessionRepository, DeviceAssignmentRepository assignmentRepository,
                           PatientRepository patientRepository, DeviceRepository deviceRepository,
-                          SessionCodeGenerator codeGenerator, AuditService auditService) {
+                          SessionCodeGenerator codeGenerator, AuditService auditService,
+                          SimulationLifecycleService simulationLifecycleService,
+                          InferenceJobService inferenceJobService,
+                          PlatformTransactionManager transactionManager) {
         this.sessionRepository = sessionRepository;
         this.assignmentRepository = assignmentRepository;
         this.patientRepository = patientRepository;
         this.deviceRepository = deviceRepository;
         this.codeGenerator = codeGenerator;
         this.auditService = auditService;
+        this.simulationLifecycleService = simulationLifecycleService;
+        this.inferenceJobService = inferenceJobService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     /** Result of start(): the session plus whether it was newly created (201) or already running (200). */
@@ -137,27 +153,39 @@ public class SessionService {
 
     // ---------------------------------------------------------------- end / cancel
 
-    @Transactional
     public SessionResponse end(UUID sessionId, UUID actorId) {
         return finish(sessionId, SessionStatus.ENDED, AuditAction.SESSION_ENDED, actorId);
     }
 
-    @Transactional
     public SessionResponse cancel(UUID sessionId, UUID actorId) {
         return finish(sessionId, SessionStatus.CANCELLED, AuditAction.SESSION_CANCELLED, actorId);
     }
 
     private SessionResponse finish(UUID sessionId, SessionStatus target, String auditAction, UUID actorId) {
-        MonitoringSession session = sessionRepository.findByIdForUpdate(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session", sessionId));
-        if (session.isActive()) {
-            session.finish(target, actorId);
-            auditService.record(actorId, auditAction, "SESSION", session.getId(), null);
-        } else if (session.getStatus() != target) {
-            throw new ApiException(ErrorCode.INVALID_SESSION_TRANSITION, "Session " + session.getSessionCode()
-                    + " is already " + session.getStatus() + " and cannot be changed to " + target);
+        record FinishOutcome(SessionResponse response, SimulationRun stoppedRun) {
         }
-        return toResponse(session);
+        FinishOutcome outcome = transactionTemplate.execute(tx -> {
+            MonitoringSession session = sessionRepository.findByIdForUpdate(sessionId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Session", sessionId));
+            SimulationRun stoppedRun = null;
+            if (session.isActive()) {
+                Instant now = Instant.now();
+                session.finish(target, actorId);
+                stoppedRun = simulationLifecycleService.stopInActiveTransaction(session.getId(), now).orElse(null);
+                if (target == SessionStatus.CANCELLED) {
+                    inferenceJobService.cancelOpenRetries(session.getId());
+                }
+                auditService.record(actorId, auditAction, "SESSION", session.getId(), null);
+            } else if (session.getStatus() != target) {
+                throw new ApiException(ErrorCode.INVALID_SESSION_TRANSITION, "Session " + session.getSessionCode()
+                        + " is already " + session.getStatus() + " and cannot be changed to " + target);
+            }
+            return new FinishOutcome(toResponse(session), stoppedRun);
+        });
+        if (outcome != null && outcome.stoppedRun() != null) {
+            simulationLifecycleService.notifyWorkerStoppedAfterSessionFinish(outcome.stoppedRun());
+        }
+        return outcome == null ? null : outcome.response();
     }
 
     // ---------------------------------------------------------------- read

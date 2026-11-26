@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Body of POST /api/v1/ingestion/readings (decision 2026-11-21):
@@ -23,6 +24,13 @@ public class IngestReadingsRequest {
 
     @Size(max = 40)
     private String sessionCode;
+
+    private UUID simulationRunId;
+
+    private Long workerGeneration;
+
+    @Size(max = 100)
+    private String workerInstanceId;
 
     @NotNull
     @Size(min = 1, max = MAX_BATCH_SIZE)
@@ -50,5 +58,29 @@ public class IngestReadingsRequest {
 
     public void setReadings(List<IngestReadingItem> readings) {
         this.readings = readings;
+    }
+
+    public UUID getSimulationRunId() {
+        return simulationRunId;
+    }
+
+    public void setSimulationRunId(UUID simulationRunId) {
+        this.simulationRunId = simulationRunId;
+    }
+
+    public Long getWorkerGeneration() {
+        return workerGeneration;
+    }
+
+    public void setWorkerGeneration(Long workerGeneration) {
+        this.workerGeneration = workerGeneration;
+    }
+
+    public String getWorkerInstanceId() {
+        return workerInstanceId;
+    }
+
+    public void setWorkerInstanceId(String workerInstanceId) {
+        this.workerInstanceId = workerInstanceId;
     }
 }

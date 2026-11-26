@@ -44,6 +44,12 @@ public final class AuditAction {
     public static final String SESSION_ENDED = "SESSION_ENDED";
     public static final String SESSION_CANCELLED = "SESSION_CANCELLED";
 
+    // Simulator runs (Stage 4) - entity_type SIMULATION_RUN
+    public static final String SIMULATION_STARTED = "SIMULATION_STARTED";
+    public static final String SIMULATION_PAUSED = "SIMULATION_PAUSED";
+    public static final String SIMULATION_RESUMED = "SIMULATION_RESUMED";
+    public static final String SIMULATION_STOPPED = "SIMULATION_STOPPED";
+
     private AuditAction() {
         // constants only - no instances
     }

@@ -2,6 +2,7 @@ package com.somnisense.backend.ingestion.service;
 
 import com.somnisense.backend.assignment.entity.DeviceAssignment;
 import com.somnisense.backend.assignment.repository.DeviceAssignmentRepository;
+import com.somnisense.backend.common.domain.SourceType;
 import com.somnisense.backend.common.exception.ApiException;
 import com.somnisense.backend.common.exception.ErrorCode;
 import com.somnisense.backend.common.exception.ResourceNotFoundException;
@@ -14,8 +15,13 @@ import com.somnisense.backend.ingestion.dto.IngestionResult.RejectReason;
 import com.somnisense.backend.session.entity.MonitoringSession;
 import com.somnisense.backend.session.entity.SessionStatus;
 import com.somnisense.backend.session.repository.MonitoringSessionRepository;
+import com.somnisense.backend.simulation.config.SimulationProperties;
+import com.somnisense.backend.simulation.entity.SimulationRun;
+import com.somnisense.backend.simulation.entity.SimulationStatus;
+import com.somnisense.backend.simulation.repository.SimulationRunRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -70,27 +76,35 @@ public class IngestionService {
             + "(id, session_id, device_id, reading_key, spo2, heart_rate, signal_quality, measured_at, received_at) "
             + "values (?, ?, ?, ?, ?, ?, ?, ?, ?) "
             + "on conflict (device_id, reading_key) where reading_key is not null do nothing";
+    private static final String LOOKAHEAD_STEPS_SQL = "select reading_key from sensor_readings "
+            + "where device_id = ? and session_id = ? and reading_key like ? and reading_key >= ? "
+            + "order by reading_key asc limit 600";
 
     private final DeviceRepository deviceRepository;
     private final DeviceAssignmentRepository assignmentRepository;
     private final MonitoringSessionRepository sessionRepository;
+    private final SimulationRunRepository simulationRunRepository;
     private final JdbcTemplate jdbcTemplate;
     private final Duration clockSkew;
+    private final Duration leaseDuration;
 
+    @Autowired
     public IngestionService(DeviceRepository deviceRepository, DeviceAssignmentRepository assignmentRepository,
-                            MonitoringSessionRepository sessionRepository, JdbcTemplate jdbcTemplate,
-                            @Value("${somnisense.ingestion.clock-skew:10s}") Duration clockSkew) {
+                            MonitoringSessionRepository sessionRepository, SimulationRunRepository simulationRunRepository,
+                            JdbcTemplate jdbcTemplate,
+                            @Value("${somnisense.ingestion.clock-skew:10s}") Duration clockSkew,
+                            SimulationProperties simulationProperties) {
         this.deviceRepository = deviceRepository;
         this.assignmentRepository = assignmentRepository;
         this.sessionRepository = sessionRepository;
+        this.simulationRunRepository = simulationRunRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.clockSkew = clockSkew;
+        this.leaseDuration = simulationProperties.getLeaseDuration();
     }
 
     @Transactional
     public IngestionResult ingest(IngestReadingsRequest request) {
-        Instant receivedAt = Instant.now();
-
         // 1. Route: device -> active assignment -> ACTIVE session
         String deviceCode = request.getDeviceCode().trim().toUpperCase(Locale.ROOT);
         Device device = deviceRepository.findByDeviceCode(deviceCode)
@@ -108,9 +122,43 @@ public class IngestionService {
             throw new ApiException(ErrorCode.SESSION_MISMATCH);
         }
 
+        // 1b. Atomic simulator fencing & lease check (SELECT ... FOR UPDATE before server clock check)
+        SimulationRun activeSimulationRun = null;
+        Instant receivedAt;
+        if (device.getDeviceType() == SourceType.SIMULATED) {
+            SimulationRun run = simulationRunRepository.findBySessionIdForUpdate(session.getId()).orElse(null);
+            receivedAt = Instant.now();
+            if (run != null) {
+                if (request.getSimulationRunId() == null || request.getWorkerGeneration() == null) {
+                    throw new ApiException(ErrorCode.SIMULATION_FENCING_REQUIRED);
+                }
+                if (!request.getSimulationRunId().equals(run.getId())) {
+                    throw new ApiException(ErrorCode.SIMULATION_MISMATCH);
+                }
+                if (run.getStatus() != SimulationStatus.RUNNING) {
+                    throw new ApiException(ErrorCode.SIMULATION_NOT_RUNNING);
+                }
+                if (request.getWorkerGeneration().longValue() != run.getWorkerGeneration()) {
+                    throw new ApiException(ErrorCode.STALE_WORKER_GENERATION);
+                }
+                if (run.getLeaseExpiresAt() == null || !run.getLeaseExpiresAt().isAfter(receivedAt)) {
+                    throw new ApiException(ErrorCode.SIMULATION_LEASE_EXPIRED);
+                }
+                activeSimulationRun = run;
+            } else if (request.getSimulationRunId() != null || request.getWorkerGeneration() != null) {
+                throw new ApiException(ErrorCode.SIMULATION_MISMATCH);
+            }
+        } else {
+            if (request.getSimulationRunId() != null || request.getWorkerGeneration() != null) {
+                throw new ApiException(ErrorCode.SIMULATION_DEVICE_NOT_SIMULATED);
+            }
+            receivedAt = Instant.now();
+        }
+
         // 2. Validate each reading
         List<IngestionResult.Rejected> rejected = new ArrayList<>();
         List<Object[]> rows = new ArrayList<>();
+        List<Long> rowSteps = new ArrayList<>();
         Set<String> keysInBatch = new HashSet<>();
         int duplicates = 0;
         Instant latestAllowed = receivedAt.plus(clockSkew);
@@ -137,18 +185,63 @@ public class IngestionService {
             rows.add(new Object[]{UUID.randomUUID(), session.getId(), device.getId(), key,
                     round(r.getSpo2()), round(r.getHeartRate()), null,
                     OffsetDateTime.ofInstant(r.getMeasuredAt(), ZoneOffset.UTC), receivedAtUtc});
+            rowSteps.add(activeSimulationRun != null ? parseSimulationStep(key, deviceCode, session.getSessionCode()) : null);
         }
 
         // 3. Insert; rows whose key already exists for this device are skipped by the database (count = 0)
         int accepted = 0;
+        Set<Long> newlyInsertedSteps = new HashSet<>();
         if (!rows.isEmpty()) {
-            for (int count : jdbcTemplate.batchUpdate(INSERT_SQL, rows)) {
-                if (count > 0) {
+            int[] counts = jdbcTemplate.batchUpdate(INSERT_SQL, rows);
+            for (int idx = 0; idx < counts.length; idx++) {
+                if (counts[idx] > 0) {
                     accepted++;
+                    Long step = rowSteps.get(idx);
+                    if (step != null) {
+                        newlyInsertedSteps.add(step);
+                    }
                 } else {
                     duplicates++;
                 }
             }
+        }
+
+        // 3b. Advance contiguous last_step only from verified persisted readings and renew lease
+        if (activeSimulationRun != null) {
+            long nextStep = activeSimulationRun.getLastStep() + 1L;
+            while (newlyInsertedSteps.contains(nextStep)) {
+                nextStep++;
+            }
+            if (nextStep > activeSimulationRun.getLastStep() + 1L || duplicates > 0) {
+                String prefix = deviceCode + "-" + session.getSessionCode() + "-";
+                String minKey = String.format(Locale.ROOT, "%s%08d", prefix, nextStep);
+                List<String> existingKeys = jdbcTemplate.queryForList(
+                        LOOKAHEAD_STEPS_SQL,
+                        String.class,
+                        device.getId(),
+                        session.getId(),
+                        prefix + "%",
+                        minKey
+                );
+                Set<Long> persistedSteps = new HashSet<>(newlyInsertedSteps);
+                for (String existingKey : existingKeys) {
+                    Long existingStep = parseSimulationStep(existingKey, deviceCode, session.getSessionCode());
+                    if (existingStep != null) {
+                        persistedSteps.add(existingStep);
+                    }
+                }
+                while (persistedSteps.contains(nextStep)) {
+                    nextStep++;
+                }
+            }
+            long newLastStep = nextStep - 1L;
+            activeSimulationRun.renewLeaseAndAdvanceStep(
+                    newLastStep,
+                    request.getWorkerInstanceId(),
+                    receivedAt.plus(leaseDuration),
+                    receivedAt
+            );
+            simulationRunRepository.save(activeSimulationRun);
         }
 
         // 4. Data is arriving: move last_seen_at forward (drives CONNECTED/STALE/DISCONNECTED)
@@ -159,6 +252,25 @@ public class IngestionService {
                 deviceCode, session.getSessionCode(), accepted, duplicates, rejected.size());
         return new IngestionResult(deviceCode, session.getId(), session.getSessionCode(), receivedAt,
                 accepted, duplicates, rejected);
+    }
+
+    private static Long parseSimulationStep(String key, String deviceCode, String sessionCode) {
+        String expectedPrefix = (deviceCode + "-" + sessionCode + "-").toUpperCase(Locale.ROOT);
+        if (!key.toUpperCase(Locale.ROOT).startsWith(expectedPrefix)) {
+            return null;
+        }
+        String suffix = key.substring(expectedPrefix.length());
+        if (suffix.isEmpty() || suffix.length() > 15) {
+            return null;
+        }
+        for (int i = 0; i < suffix.length(); i++) {
+            char c = suffix.charAt(i);
+            if (c < '0' || c > '9') {
+                return null;
+            }
+        }
+        long step = Long.parseLong(suffix);
+        return step >= 1L ? step : null;
     }
 
     /** Returns null if the reading is valid, otherwise the reason it is rejected. */
