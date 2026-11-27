@@ -17,7 +17,7 @@ import java.util.UUID;
  * latestReading (Stage 9) is the newest reading of that active session, or null.
  */
 @JsonPropertyOrder({"id", "patientCode", "fullName", "alias", "sourceType", "status", "currentDevice",
-        "activeSession", "latestReading", "createdAt"})
+        "activeSession", "latestReading", "reviewStatus", "createdAt"})
 public class PatientSummaryResponse {
 
     private final UUID id;
@@ -30,11 +30,18 @@ public class PatientSummaryResponse {
     private final Instant createdAt;
     private final ActiveSessionInfo activeSession;
     private final LatestReadingInfo latestReading;
+    private final String reviewStatus;
 
     public PatientSummaryResponse(Patient p, CurrentDeviceInfo currentDevice, ActiveSessionInfo activeSession,
                                   LatestReadingInfo latestReading) {
+        this(p, currentDevice, activeSession, latestReading, "NONE");
+    }
+
+    public PatientSummaryResponse(Patient p, CurrentDeviceInfo currentDevice, ActiveSessionInfo activeSession,
+                                  LatestReadingInfo latestReading, String reviewStatus) {
         this.activeSession = activeSession;
         this.latestReading = latestReading;
+        this.reviewStatus = reviewStatus == null ? "NONE" : reviewStatus;
         this.id = p.getId();
         this.patientCode = p.getPatientCode();
         this.fullName = p.getFullName();
@@ -83,5 +90,9 @@ public class PatientSummaryResponse {
 
     public LatestReadingInfo getLatestReading() {
         return latestReading;
+    }
+
+    public String getReviewStatus() {
+        return reviewStatus;
     }
 }

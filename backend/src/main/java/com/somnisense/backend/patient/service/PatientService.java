@@ -1,5 +1,6 @@
 package com.somnisense.backend.patient.service;
 
+import com.somnisense.backend.ai.config.AiProperties;
 import com.somnisense.backend.assignment.dto.CurrentDeviceInfo;
 import com.somnisense.backend.assignment.entity.DeviceAssignment;
 import com.somnisense.backend.assignment.repository.DeviceAssignmentRepository;
@@ -30,6 +31,8 @@ import com.somnisense.backend.patient.repository.PatientContactRepository;
 import com.somnisense.backend.patient.repository.PatientMedicalDetailsRepository;
 import com.somnisense.backend.patient.repository.PatientRepository;
 import com.somnisense.backend.patient.repository.PatientSpecifications;
+import com.somnisense.backend.prediction.entity.Prediction;
+import com.somnisense.backend.prediction.repository.PredictionRepository;
 import com.somnisense.backend.reading.dto.LatestReadingInfo;
 import com.somnisense.backend.reading.entity.SensorReading;
 import com.somnisense.backend.reading.repository.SensorReadingRepository;
@@ -91,14 +94,19 @@ public class PatientService {
     private final ConnectivityPolicy connectivityPolicy;
     private final MonitoringSessionRepository sessionRepository;
     private final SensorReadingRepository readingRepository;
+    private final PredictionRepository predictionRepository;
+    private final AiProperties aiProperties;
 
     public PatientService(PatientRepository patientRepository, PatientContactRepository contactRepository,
                           PatientMedicalDetailsRepository medicalRepository, PatientCodeGenerator codeGenerator,
                           AuditService auditService, DeviceAssignmentRepository assignmentRepository,
                           DeviceRepository deviceRepository, ConnectivityPolicy connectivityPolicy,
-                          MonitoringSessionRepository sessionRepository, SensorReadingRepository readingRepository) {
+                          MonitoringSessionRepository sessionRepository, SensorReadingRepository readingRepository,
+                          PredictionRepository predictionRepository, AiProperties aiProperties) {
         this.sessionRepository = sessionRepository;
         this.readingRepository = readingRepository;
+        this.predictionRepository = predictionRepository;
+        this.aiProperties = aiProperties;
         this.patientRepository = patientRepository;
         this.contactRepository = contactRepository;
         this.medicalRepository = medicalRepository;
@@ -137,20 +145,26 @@ public class PatientService {
                 .collect(Collectors.toMap(Device::getId, Function.identity()));
         Map<UUID, MonitoringSession> sessions = sessionRepository.findByPatientIdInAndStatus(ids, SessionStatus.ACTIVE)
                 .stream().collect(Collectors.toMap(MonitoringSession::getPatientId, Function.identity()));
-        // Newest reading of each active session: one query for the whole page (skipped when there are none).
+        // Newest reading and prediction of each active session: batch queries for the whole page.
         List<UUID> sessionIds = sessions.values().stream().map(MonitoringSession::getId).toList();
         Map<UUID, SensorReading> latestBySession = sessionIds.isEmpty() ? Map.of()
                 : readingRepository.findLatestPerSession(sessionIds).stream()
                         .collect(Collectors.toMap(SensorReading::getSessionId, Function.identity()));
+        Map<UUID, Prediction> latestPredictionsBySession = sessionIds.isEmpty() ? Map.of()
+                : predictionRepository.findLatestPerSession(sessionIds, aiProperties.getModelVersion()).stream()
+                        .collect(Collectors.toMap(Prediction::getSessionId, Function.identity()));
         Instant now = Instant.now();
         return PageResponse.from(result, p -> {
             DeviceAssignment a = byPatient.get(p.getId());
             MonitoringSession s = sessions.get(p.getId());
             SensorReading latest = s == null ? null : latestBySession.get(s.getId());
+            Prediction latestPred = s == null ? null : latestPredictionsBySession.get(s.getId());
+            String reviewStatus = latestPred == null ? "NONE" : latestPred.getPredictionStatus().name();
             return new PatientSummaryResponse(p,
                     a == null ? null : deviceInfo(a, devices.get(a.getDeviceId()), now),
                     sessionInfo(s),
-                    latest == null ? null : new LatestReadingInfo(latest));
+                    latest == null ? null : new LatestReadingInfo(latest),
+                    reviewStatus);
         });
     }
 

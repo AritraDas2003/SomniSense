@@ -68,6 +68,8 @@ class PatientCodeTest {
                 generator, mock(AuditService.class), mock(DeviceAssignmentRepository.class), mock(DeviceRepository.class),
                 new ConnectivityPolicy(Duration.ofSeconds(30), Duration.ofSeconds(120)),
                 mock(com.somnisense.backend.session.repository.MonitoringSessionRepository.class),
-                mock(com.somnisense.backend.reading.repository.SensorReadingRepository.class));
+                mock(com.somnisense.backend.reading.repository.SensorReadingRepository.class),
+                mock(com.somnisense.backend.prediction.repository.PredictionRepository.class),
+                new com.somnisense.backend.ai.config.AiProperties("http://127.0.0.1:8090", "", Duration.ofSeconds(2), Duration.ofSeconds(5), "phase7_model_c:1.0.0"));
     }
 }

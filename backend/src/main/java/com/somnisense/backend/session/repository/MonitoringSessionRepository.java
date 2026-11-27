@@ -3,6 +3,7 @@ package com.somnisense.backend.session.repository;
 import com.somnisense.backend.session.entity.MonitoringSession;
 import com.somnisense.backend.session.entity.SessionStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -56,4 +57,10 @@ public interface MonitoringSessionRepository extends JpaRepository<MonitoringSes
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from MonitoringSession s where s.id = :id")
     Optional<MonitoringSession> findByIdForUpdate(@Param("id") UUID id);
+
+    /** Bounded list of newest ACTIVE sessions for the dashboard summary without an extra count query. */
+    @Query("select s from MonitoringSession s "
+            + "where s.status = com.somnisense.backend.session.entity.SessionStatus.ACTIVE "
+            + "order by s.startedAt desc, s.id asc")
+    List<MonitoringSession> findActiveOrdered(Pageable pageable);
 }

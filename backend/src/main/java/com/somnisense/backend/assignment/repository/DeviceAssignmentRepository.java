@@ -49,4 +49,10 @@ public interface DeviceAssignmentRepository extends JpaRepository<DeviceAssignme
 
     /** Active assignments for a page of devices (inventory list) in one query. */
     List<DeviceAssignment> findByDeviceIdInAndReleasedAtIsNull(Collection<UUID> deviceIds);
+
+    /** Batch-loads session assignments plus active assignments for dashboard patients in one query. */
+    @Query("select a from DeviceAssignment a where a.id in (:assignmentIds) "
+            + "or (a.patientId in (:patientIds) and a.releasedAt is null)")
+    List<DeviceAssignment> findForDashboardBatch(@Param("assignmentIds") Collection<UUID> assignmentIds,
+                                                 @Param("patientIds") Collection<UUID> patientIds);
 }

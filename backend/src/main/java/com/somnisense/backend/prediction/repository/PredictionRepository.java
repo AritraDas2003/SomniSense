@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,4 +41,15 @@ public interface PredictionRepository extends JpaRepository<Prediction, UUID> {
             + "where p.sessionId = :sessionId and p.modelVersion = :modelVersion")
     Optional<Instant> findMaxWindowEnd(@Param("sessionId") UUID sessionId,
                                        @Param("modelVersion") String modelVersion);
+
+    /**
+     * Newest prediction per session for the configured model version in one PostgreSQL query.
+     * Matches deterministic ordering: (window_end DESC, processed_at DESC, id DESC).
+     */
+    @Query(value = "select distinct on (session_id) * from predictions "
+            + "where session_id in (:sessionIds) and model_version = :modelVersion "
+            + "order by session_id, window_end desc, processed_at desc, id desc",
+            nativeQuery = true)
+    List<Prediction> findLatestPerSession(@Param("sessionIds") Collection<UUID> sessionIds,
+                                          @Param("modelVersion") String modelVersion);
 }
