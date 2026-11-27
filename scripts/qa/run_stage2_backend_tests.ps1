@@ -18,10 +18,11 @@
 
 [CmdletBinding()]
 param(
-    [string]$DbHost = 'localhost',
-    [int]$DbPort = 5432,
-    [string]$DbUser = 'postgres',
-    [string]$TestDbName = 'somnisense_test_db'
+    [string]$DbHost = $(if ($env:SOMNISENSE_QA_DB_HOST) { $env:SOMNISENSE_QA_DB_HOST } else { 'localhost' }),
+    [int]$DbPort = $(if ($env:SOMNISENSE_QA_DB_PORT) { [int]$env:SOMNISENSE_QA_DB_PORT } else { 5432 }),
+    [string]$DbUser = $(if ($env:SOMNISENSE_QA_DB_USER) { $env:SOMNISENSE_QA_DB_USER } else { 'postgres' }),
+    [string]$TestDbName = $(if ($env:SOMNISENSE_QA_DB_NAME) { $env:SOMNISENSE_QA_DB_NAME } else { 'somnisense_test_db' }),
+    [string]$TestFilter = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -141,10 +142,15 @@ $mavenExitCode = 1
 try {
     Write-Host "SOMNISENSE Stage 2 Backend Test Runner" -ForegroundColor Cyan
     Write-Host "Target test database: $TestDbName ($DbHost`:$DbPort, user: $DbUser)"
-    $securePassword = Read-Host -Prompt "Enter PostgreSQL password for user '$DbUser'" -AsSecureString
-
-    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-    $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    if ($env:SOMNISENSE_QA_DB_PASSWORD_FILE -and (Test-Path $env:SOMNISENSE_QA_DB_PASSWORD_FILE)) {
+        $plainPassword = (Get-Content -Raw -Path $env:SOMNISENSE_QA_DB_PASSWORD_FILE).TrimEnd("`r", "`n")
+    } elseif (-not [string]::IsNullOrEmpty($env:SOMNISENSE_QA_DB_PASSWORD)) {
+        $plainPassword = $env:SOMNISENSE_QA_DB_PASSWORD
+    } else {
+        $securePassword = Read-Host -Prompt "Enter PostgreSQL password for user '$DbUser'" -AsSecureString
+        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+        $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    }
 
     if ([string]::IsNullOrEmpty($plainPassword)) {
         throw "PostgreSQL password cannot be empty."
@@ -222,8 +228,13 @@ try {
 
     Write-Host "PostgreSQL and '$TestDbName' verified. Running Maven test suite..." -ForegroundColor Green
     $testDbUrl = "jdbc:postgresql://$DbHost`:$DbPort/$TestDbName"
+    $mvnArgs = @('/c', 'mvnw.cmd')
+    if (-not [string]::IsNullOrWhiteSpace($TestFilter)) {
+        $mvnArgs += "-Dtest=$TestFilter"
+    }
+    $mvnArgs += 'test'
     $mavenResult = Invoke-ChildProcess -FilePath 'cmd.exe' `
-        -ArgumentList @('/c', 'mvnw.cmd', 'test') `
+        -ArgumentList $mvnArgs `
         -WorkingDirectory $backendDir `
         -ExtraEnv @{
             'DB_PASSWORD' = $plainPassword
