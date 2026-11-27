@@ -5,6 +5,7 @@
 .app-shell {
   min-height: 100vh;
   display: flex;
+  overflow-x: clip;
   background:
     radial-gradient(ellipse at 85% -25%, rgba(116, 153, 64, 0.075), transparent 34rem),
     var(--background);
@@ -323,7 +324,12 @@
 
 .page-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
+}
+
+.page-stack > * {
+  min-width: 0;
 }
 
 .page-header {
@@ -630,6 +636,7 @@
 }
 
 .patient-table-panel {
+  position: relative;
   overflow: hidden;
 }
 
@@ -698,6 +705,7 @@
 }
 
 .table-scroll {
+  position: relative;
   width: 100%;
   overflow-x: auto;
 }
@@ -2483,5 +2491,362 @@
 
   .demo-credentials code {
     grid-column: 2;
+  }
+}
+
+/* Milestone 4D: Active sessions overview, simulator controls, and window prediction panels */
+.spin-icon {
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+.button-danger {
+  color: #f6dcd8;
+  background: #4e2722;
+  border-color: #773a32;
+}
+
+.button-danger:hover {
+  background: #63312a;
+}
+
+.active-sessions-panel {
+  overflow: hidden;
+}
+
+.status-breakdown-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.breakdown-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.breakdown-success {
+  color: #a4d985;
+  background: #24311e;
+  border-color: #344a29;
+}
+
+.breakdown-warning {
+  color: #e7c173;
+  background: #342d1e;
+  border-color: #4d4127;
+}
+
+.breakdown-danger {
+  color: #ed9389;
+  background: #362522;
+  border-color: #53342d;
+}
+
+.breakdown-muted {
+  color: #a3aa9d;
+  background: #282d27;
+  border-color: #3b4139;
+}
+
+.active-truncation-banner {
+  margin: 0 18px 12px;
+}
+
+.active-sessions-empty {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 18px;
+  color: #8b9485;
+  border-top: 1px solid #2b3129;
+  font-size: 10px;
+}
+
+.active-sessions-empty > div {
+  display: grid;
+  gap: 3px;
+}
+
+.active-sessions-empty strong {
+  color: #dbe2d4;
+  font-size: 11px;
+}
+
+.active-sessions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.active-session-card {
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+  color: inherit;
+  text-decoration: none;
+  background: #171b16;
+  border: 1px solid #2f372d;
+  border-radius: 7px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.active-session-card:hover {
+  border-color: #627848;
+  background: #1a2019;
+}
+
+.active-session-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 10px;
+}
+
+.active-session-head > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.active-session-head strong {
+  display: block;
+  color: #e6ebe0;
+  font-size: 12px;
+  font-weight: 570;
+}
+
+.active-session-head small {
+  color: #828b7c;
+  font-size: 9px;
+}
+
+.active-session-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.active-session-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 9px 0;
+  border-top: 1px solid #292f27;
+  border-bottom: 1px solid #292f27;
+}
+
+.active-session-metrics > div {
+  display: grid;
+  gap: 3px;
+}
+
+.active-session-metrics span {
+  color: #7e8679;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.active-session-metrics strong {
+  color: #dde3d7;
+  font-size: 10px;
+  font-weight: 560;
+}
+
+.inline-sim-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.inline-sim-meta small {
+  color: #8f9889;
+  font-size: 9px;
+  font-weight: 450;
+}
+
+.active-session-prediction {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.active-session-prediction small {
+  color: #848d7f;
+  font-size: 9px;
+}
+
+.active-prediction-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.confidence-chip {
+  color: #d7e9bc;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.waiting-prediction-text {
+  color: #9ba494;
+  font-size: 10px;
+}
+
+.control-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.control-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.control-panel-head h2 {
+  margin: 4px 0 0;
+  color: #e7ebe2;
+  font-size: 14px;
+  font-weight: 570;
+}
+
+.control-action-buttons,
+.confirm-cancel-group,
+.sim-buttons,
+.sim-meta-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.confirm-cancel-group {
+  padding: 4px 10px;
+  color: #e7c173;
+  background: #2d261b;
+  border: 1px solid #4d4127;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.simulator-control-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #2b3129;
+}
+
+.sim-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sim-field {
+  display: grid;
+  gap: 4px;
+  color: #98a093;
+  font-size: 9px;
+}
+
+.sim-select {
+  width: 240px;
+}
+
+.sim-seed-input {
+  width: 110px;
+  min-height: 32px;
+}
+
+.sim-status-and-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.sim-meta-pills {
+  color: #a6afa0;
+  font-size: 10px;
+}
+
+.prediction-section {
+  display: grid;
+  gap: 12px;
+}
+
+.prediction-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto !important;
+}
+
+.prediction-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.prediction-detail-grid > div {
+  display: grid;
+  gap: 4px;
+}
+
+.prediction-detail-grid span {
+  color: #828b7e;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.prediction-detail-grid strong {
+  color: #e4e9de;
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.prediction-history-table {
+  min-width: 700px;
+}
+
+@media (max-width: 620px) {
+  .active-sessions-grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 12px 14px;
+  }
+
+  .active-session-card,
+  .active-session-metrics > div {
+    min-width: 0;
+  }
+
+  .active-session-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sim-select {
+    width: 100%;
   }
 }

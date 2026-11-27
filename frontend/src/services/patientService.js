@@ -35,6 +35,15 @@ export async function createPatient(input) {
   return httpClient.post('/patients', payload)
 }
 
+async function fetchSimulationSafe(encodedSessionId) {
+  try {
+    return await httpClient.get(`/sessions/${encodedSessionId}/simulation`)
+  } catch (err) {
+    if (err?.status === 404) return null
+    throw err
+  }
+}
+
 export async function getPatientOverview(patientId) {
   if (useMockApi) return mockMonitoringService.getPatientOverview(patientId)
 
@@ -60,20 +69,29 @@ export async function getPatientOverview(patientId) {
       session: null,
       latestReadings: null,
       readings: [],
+      latestPrediction: null,
       predictions: [],
+      simulation: null,
+      generatedAt: new Date().toISOString(),
       dataMode: 'LIVE',
-      mlAvailable: false,
+      mlAvailable: true,
     }
   }
 
   const encodedSessionId = encodeURIComponent(targetSessionId)
-  const [resolvedSession, latestReadings, firstPage] = await Promise.all([
-    session ? Promise.resolve(session) : httpClient.get(`/sessions/${encodedSessionId}`),
-    httpClient.get(`/sessions/${encodedSessionId}/readings/latest`),
-    httpClient.get(`/sessions/${encodedSessionId}/readings`, {
-      params: { page: 0, size: 300 },
-    }),
-  ])
+  const [resolvedSession, latestReadings, firstPage, latestPredResp, predictionsPage, simulation] =
+    await Promise.all([
+      session ? Promise.resolve(session) : httpClient.get(`/sessions/${encodedSessionId}`),
+      httpClient.get(`/sessions/${encodedSessionId}/readings/latest`),
+      httpClient.get(`/sessions/${encodedSessionId}/readings`, {
+        params: { page: 0, size: 300 },
+      }),
+      httpClient.get(`/sessions/${encodedSessionId}/predictions/latest`),
+      httpClient.get(`/sessions/${encodedSessionId}/predictions`, {
+        params: { page: 0, size: 20 },
+      }),
+      patient.sourceType === 'SIMULATED' ? fetchSimulationSafe(encodedSessionId) : Promise.resolve(null),
+    ])
 
   let readings = firstPage?.content || []
   if (firstPage && firstPage.totalPages > 1) {
@@ -83,13 +101,68 @@ export async function getPatientOverview(patientId) {
     readings = lastPage?.content || readings
   }
 
+  const predictions = predictionsPage?.content || []
+  const latestPrediction = latestPredResp?.hasPrediction
+    ? latestPredResp.latest
+    : predictions[0] || null
+
   return {
     patient,
     session: resolvedSession,
     latestReadings,
     readings,
-    predictions: [],
+    latestPrediction,
+    predictions,
+    simulation,
+    generatedAt: new Date().toISOString(),
     dataMode: 'LIVE',
-    mlAvailable: false,
+    mlAvailable: true,
   }
+}
+
+export async function startSession({ patientId, deviceAssignmentId = null }) {
+  if (useMockApi) throw new Error('Session start is only supported in LIVE API mode.')
+  const payload = { patientId }
+  if (deviceAssignmentId) payload.deviceAssignmentId = deviceAssignmentId
+  return httpClient.post('/sessions', payload)
+}
+
+export async function endSession(sessionId) {
+  if (useMockApi) throw new Error('Session end is only supported in LIVE API mode.')
+  return httpClient.post(`/sessions/${encodeURIComponent(sessionId)}/end`)
+}
+
+export async function cancelSession(sessionId) {
+  if (useMockApi) throw new Error('Session cancel is only supported in LIVE API mode.')
+  return httpClient.post(`/sessions/${encodeURIComponent(sessionId)}/cancel`)
+}
+
+export async function startSimulation(sessionId, options = {}) {
+  if (useMockApi) throw new Error('Simulator control is only supported in LIVE API mode.')
+  const payload = {
+    scenarioId: options.scenarioId || 'normal_sleep',
+    cadenceHz: options.cadenceHz ?? 1.0,
+    playbackSpeed: options.playbackSpeed ?? 1.0,
+  }
+  if (options.seed !== undefined && options.seed !== '' && options.seed !== null) {
+    const parsedSeed = Number(options.seed)
+    if (Number.isFinite(parsedSeed)) payload.seed = parsedSeed
+  }
+  if (options.qualityPreset) payload.qualityPreset = options.qualityPreset
+  return httpClient.post(`/sessions/${encodeURIComponent(sessionId)}/simulation/start`, payload)
+}
+
+export async function pauseSimulation(sessionId) {
+  if (useMockApi) throw new Error('Simulator control is only supported in LIVE API mode.')
+  return httpClient.post(`/sessions/${encodeURIComponent(sessionId)}/simulation/pause`)
+}
+
+export async function resumeSimulation(sessionId) {
+  if (useMockApi) throw new Error('Simulator control is only supported in LIVE API mode.')
+  return httpClient.post(`/sessions/${encodeURIComponent(sessionId)}/simulation/resume`)
+}
+
+export async function stopSimulation(sessionId) {
+  if (useMockApi) throw new Error('Simulator control is only supported in LIVE API mode.')
+  return httpClient.post(`/sessions/${encodeURIComponent(sessionId)}/simulation/stop`)
 }
